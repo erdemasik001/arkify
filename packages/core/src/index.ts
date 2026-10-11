@@ -1,3 +1,5 @@
+export * from "./client"
+export * from "./events"
 export * from "./queries"
 export * from "./records"
 export * from "./schema"

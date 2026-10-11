@@ -1,3 +1,4 @@
+export * from "./brotli"
 export * from "./chain"
 export * from "./compare"
 export * from "./compiler"
