@@ -4,8 +4,11 @@
   "type": "module",
   "license": "MIT",
   "scripts": {
-    "spike": "tsx scripts/spike.ts",
     "gen-wallets": "tsx scripts/gen-wallets.ts",
+    "fund": "tsx scripts/fund.ts",
+    "spike": "tsx scripts/spike.ts",
+    "measure-sources": "tsx scripts/measure-sources.ts",
+    "typecheck": "tsc --noEmit -p .",
     "test": "vitest run"
   },
   "dependencies": {
