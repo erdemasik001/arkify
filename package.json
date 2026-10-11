@@ -10,11 +10,14 @@
     "smoke": "tsx scripts/smoke-core.ts",
     "verify": "tsx scripts/verify.ts",
     "measure-sources": "tsx scripts/measure-sources.ts",
-    "typecheck": "tsc --noEmit -p .",
+    "typecheck": "tsc --noEmit -p . && tsc --noEmit -p apps/web",
     "test": "vitest run --exclude '**/*.network.test.ts'",
     "test:network": "vitest run network.test",
     "verifier": "tsx packages/verifier/src/main.ts",
-    "e2e": "tsx scripts/e2e.ts"
+    "e2e": "tsx scripts/e2e.ts",
+    "web": "pnpm --filter @arkify/web dev",
+    "web:build": "pnpm --filter @arkify/web build",
+    "purge-demo": "tsx scripts/purge.ts"
   },
   "dependencies": {
     "@arkiv-network/sdk": "0.8.1",

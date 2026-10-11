@@ -1,0 +1,43 @@
+import { explainError } from "@arkify/core"
+import type { Expiry } from "@arkiv-network/sdk/utils"
+import { useState } from "react"
+import type { Hex } from "viem"
+import { ARKIV_EXPLORER } from "../lib/arkiv"
+import { ensureWallet } from "../lib/wallet"
+
+/**
+ * Extends the life of an entity the visitor does not own. Requests, sources and attestations are
+ * created with `permissionlessExtension`, so anyone who relies on one can keep it on Arkiv, and
+ * nobody but its owner can change it.
+ */
+export function KeepAlive({ entityKey, lifetime, label, onDone }: { entityKey: Hex; lifetime: Expiry; label: string; onDone?: () => void }) {
+  const [state, setState] = useState<{ busy?: boolean; txHash?: Hex; error?: string }>({})
+
+  async function extend() {
+    setState({ busy: true })
+    try {
+      const wallet = await ensureWallet()
+      const { txHash } = await wallet.client.extendEntity({ entityKey, expires: lifetime })
+      setState({ txHash })
+      onDone?.()
+    } catch (error) {
+      setState({ error: explainError(error) })
+    }
+  }
+
+  if (state.txHash !== undefined) {
+    return (
+      <a href={`${ARKIV_EXPLORER}/tx/${state.txHash}`} target="_blank" rel="noreferrer">
+        extended
+      </a>
+    )
+  }
+  return (
+    <span>
+      <button type="button" className="link-button" disabled={state.busy} onClick={() => void extend()} title={`Sign a Lifetime Extension: ${label}`}>
+        {state.busy ? "signing…" : "keep alive"}
+      </button>
+      {state.error !== undefined && <span className="inline-error" title={state.error}> failed</span>}
+    </span>
+  )
+}
