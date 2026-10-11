@@ -199,5 +199,5 @@ Measured on Tiramisu on 11 October 2026; see [friction.md](friction.md) for the 
 | Range filters | numeric types and `$createdAt`, `$expiresAt` | timestamps are `u64` |
 | String attribute | 128 bytes | long text (paths, messages) lives in payloads |
 | Payload through the public RPC | about 129 KB | source bundles are brotli-compressed and capped at 120 KiB |
-| Anonymous RPC budget | 10,000 cost units, 100 per `arkiv_query`; refill rate not measured | few queries per view; WebSocket events instead of polling |
+| Anonymous RPC budget | about 100 `arkiv_query` calls per hour per client address | five queries for a contract page; live updates come from WebSocket events, which are not metered |
 | Lifetime and fees | lifetime does not change the fee | lifetimes follow product logic only |
