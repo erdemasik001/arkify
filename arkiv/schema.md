@@ -104,6 +104,11 @@ One verifier's result for one (deployed code, source) pair. Written by the verif
 | `verified_at` | `u64` | Unix seconds. Queried as a range. |
 
 - **Payload:** JSON details that are shown but never filtered on: `{ engine, engineVersion, durationMs, compiledCodeHash?, message? }`.
+- **Verdicts.** The first three are deterministic: every honest verifier reaches the same one.
+  - `full_match`: the compiled runtime bytecode is identical to the deployed code, including the metadata hash, which commits to every source file and compiler setting. Immutables and linked library addresses, which are set at deployment, are ignored.
+  - `partial_match`: the executable code is identical but the exact source files are not proven, because the metadata hash differs or the contract was built without one.
+  - `mismatch`: the source does not produce the deployed code. That includes a source that does not compile, a compiler version that is not an official solc release, and an address with no code.
+  - `error`: the verifier could not finish (for example it could not download the compiler). It says nothing about the contract.
 - **`code_hash` scopes an attestation to the code that was checked.** If the code at an address changes, old attestations stop matching the lookup, which always uses the hash of the code deployed now.
 - **Entity Expiration: 90 days**, renewed by activity: when the same verifier re-checks the same code against the same source it performs a Lifetime Extension on its existing attestation instead of writing a second one. An `error` attestation lives **24 hours**: a failed run says nothing lasting about the contract.
 - **Flags:** `readonly` (a verifier cannot quietly rewrite a result it has published) and `permissionlessExtension` (anyone who relies on an attestation can keep it alive, without being able to change it).
