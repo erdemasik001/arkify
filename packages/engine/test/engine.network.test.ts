@@ -1,9 +1,9 @@
 // Needs the network: downloads solc builds, and for the Sepolia cases reads deployed code from a
 // public RPC and candidate sources from Sourcify. Run with `pnpm test:network`.
-import type { SourceBundle } from "@arkify/core"
+import { fetchSourcifyBundle, type SourceBundle } from "@arkify/core"
 import { bytesToHex, type Hex } from "viem"
 import { describe, expect, it } from "vitest"
-import { compileBundle, fetchSourcifyBundle, rpcCodeReader, verify } from "../src"
+import { compileBundle, rpcCodeReader, verify } from "../src"
 import { fixtures, SEPOLIA } from "./fixtures"
 
 const TIMEOUT = 300_000

@@ -84,6 +84,8 @@ export type AttestationRecord = Meta &
     verdict: Verdict
     /** Unix seconds. */
     verifiedAt: bigint
+    /** Present when the query selected the payload and it parsed. */
+    details?: AttestationDetails
   }
 
 /** The non-queryable part of an attestation, stored as its JSON payload. */
@@ -268,7 +270,37 @@ export function decodeAttestation(entity: EntityLike): AttestationRecord | undef
   if (!meta || !target || codeHash === undefined || sourceHash === undefined) return undefined
   if (sourceKey === undefined || verifiedAt === undefined) return undefined
   if (verdict === undefined || !VERDICTS.has(verdict)) return undefined
-  return { ...meta, ...target, codeHash, sourceHash, sourceKey, verdict: verdict as Verdict, verifiedAt }
+  const details = detailsOf(entity.payload)
+  return {
+    ...meta,
+    ...target,
+    codeHash,
+    sourceHash,
+    sourceKey,
+    verdict: verdict as Verdict,
+    verifiedAt,
+    ...(details !== undefined && { details }),
+  }
+}
+
+/** The payload is shown to people, never used for decisions, so anything unreadable is just absent. */
+function detailsOf(payload: Uint8Array | undefined): AttestationDetails | undefined {
+  if (payload === undefined || payload.length === 0 || payload.length > 16_384) return undefined
+  try {
+    const parsed: unknown = JSON.parse(new TextDecoder().decode(payload))
+    if (typeof parsed !== "object" || parsed === null) return undefined
+    const { engine, engineVersion, durationMs, compiledCodeHash, message } = parsed as Record<string, unknown>
+    if (typeof engine !== "string" || typeof engineVersion !== "string") return undefined
+    return {
+      engine,
+      engineVersion,
+      durationMs: typeof durationMs === "number" ? durationMs : 0,
+      ...(typeof compiledCodeHash === "string" && { compiledCodeHash: compiledCodeHash as Hex }),
+      ...(typeof message === "string" && { message }),
+    }
+  } catch {
+    return undefined
+  }
 }
 
 /** Decodes every well-formed entity and silently drops the rest. */

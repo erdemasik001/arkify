@@ -32,10 +32,17 @@ export type Writer = Pick<WalletArkivClient, "executeBatch"> & { account: { addr
 /** Upper bound on entities read for one question, so a flood of entities cannot stall a client. */
 const MAX_ENTITIES = 1_000
 
-/** Reads every page of a query with the fields records decode from. */
-export async function readAll(reader: Reader, where: Expression, creator?: Address): Promise<EntityLike[]> {
-  const builder = reader.select(RECORD_SELECTION).where(where).limit(200)
-  if (creator !== undefined) builder.createdBy(creator)
+/** Reads every page of a query with the fields records decode from, and optionally the payloads. */
+export async function readAll(
+  reader: Reader,
+  where: Expression,
+  options: { creator?: Address; payload?: boolean } = {},
+): Promise<EntityLike[]> {
+  const builder = reader
+    .select({ ...RECORD_SELECTION, payload: options.payload === true })
+    .where(where)
+    .limit(200)
+  if (options.creator !== undefined) builder.createdBy(options.creator)
   const entities: EntityLike[] = []
   for await (const entity of builder) {
     entities.push(entity)
@@ -149,8 +156,8 @@ export async function fetchAttestations(
   trusted: readonly Address[],
 ): Promise<{ trusted: AttestationRecord[]; others: AttestationRecord[] }> {
   const [fromTrusted, fromOthers] = await Promise.all([
-    trusted.length === 0 ? [] : readAll(reader, trustedAttestations(target, trusted)),
-    readAll(reader, otherAttestations(target, trusted)),
+    trusted.length === 0 ? [] : readAll(reader, trustedAttestations(target, trusted), { payload: true }),
+    readAll(reader, otherAttestations(target, trusted), { payload: true }),
   ])
   return {
     trusted: decodeAll(fromTrusted, decodeAttestation),

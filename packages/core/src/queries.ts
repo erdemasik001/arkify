@@ -102,3 +102,11 @@ export function requestsCreatedAfter(block: bigint): string {
 export function sourcesWithHash(sourceHash: Hex): Expression {
   return and(...ofType(EntityType.Source), eq(Attr.sourceHash, bytes32(sourceHash)))
 }
+
+/** Source entities for several hashes at once, so a page of attestations costs one source query. */
+export function sourcesWithAnyHash(sourceHashes: readonly Hex[]): Expression {
+  return and(
+    ...ofType(EntityType.Source),
+    or(sourceHashes.map((sourceHash) => eq(Attr.sourceHash, bytes32(sourceHash)))),
+  )
+}

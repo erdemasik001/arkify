@@ -11,6 +11,7 @@ import {
   requests,
   requestsCreatedAfter,
   requestsFor,
+  sourcesWithAnyHash,
   sourcesWithHash,
   trustedAttestations,
   verifiers,
@@ -84,6 +85,10 @@ describe("queries", () => {
   it("sources by content hash", () => {
     expect(sourcesWithHash(SOURCE).toString()).toBe(
       `type = str('arkify.source') AND schema_version = i32(1) AND source_hash = bytes32(${SOURCE})`,
+    )
+    expect(sourcesWithAnyHash([SOURCE, CODE]).toString()).toBe(
+      "type = str('arkify.source') AND schema_version = i32(1) " +
+        `AND (source_hash = bytes32(${SOURCE}) OR source_hash = bytes32(${CODE}))`,
     )
   })
 })

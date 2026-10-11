@@ -1,6 +1,7 @@
 // Fetches a candidate source bundle from Sourcify's public API.
-// Sourcify is only where the candidate comes from. Whether it matches is decided by `verify`.
-import type { SolcInput, SourceBundle, Target } from "@arkify/core"
+// Sourcify is only where the candidate comes from. Whether it matches is decided by the verifiers.
+import type { Target } from "./records"
+import type { SolcInput, SourceBundle } from "./source"
 
 const SOURCIFY = "https://sourcify.dev/server/v2/contract"
 
