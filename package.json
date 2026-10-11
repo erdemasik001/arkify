@@ -3,6 +3,9 @@
   "private": true,
   "type": "module",
   "license": "MIT",
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "gen-wallets": "tsx scripts/gen-wallets.ts",
     "fund": "tsx scripts/fund.ts",
