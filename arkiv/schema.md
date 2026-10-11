@@ -71,7 +71,7 @@ A request to check a contract against a source bundle. Written by anyone.
 
 ### `arkify.source`
 
-A source bundle, stored content-addressed. Written by whoever submits it.
+A source bundle, stored content-addressed. Written by whoever submits it, and again by every verifier that matches it.
 
 | Attribute | Type | Meaning |
 |---|---|---|
@@ -85,6 +85,7 @@ A source bundle, stored content-addressed. Written by whoever submits it.
 - **`source_hash` is a claim until checked.** Every reader decompresses the payload, hashes it and compares (`unpackSource`); a payload stored under someone else's hash is rejected. Decompression is capped at 16 MiB.
 - **Size:** at most 120 KiB after compression. The public RPC refuses request bodies over about 256 KiB, which caps a payload near 129 KB ([F-011](friction.md)). Measured with `pnpm measure-sources`: UniswapV3Factory's 2.1 MB input is 41 KB with brotli but 353 KB with gzip, which is why brotli is used. A bundle that is still too large is refused; it is not split.
 - **Entity Expiration: 180 days.** A source must outlive the attestations (90 days) that point at it.
+- **Each verifier keeps its own copy of a source it matched.** The submitter owns the copy they uploaded and could delete it, which would leave a "verified" contract with no readable source. So a verifier writes its own copy and its attestation in **one atomic batch**, the attestation's `source_key` naming the copy by a predicted key. When it attests against that source again, the same batch that writes the attestation performs a Lifetime Extension on the copy. A source that did not match is not copied.
 - **Flags:** `readonly` (content-addressed data must never change) and `permissionlessExtension` (anyone who relies on a source can keep it alive).
 
 ### `arkify.attestation`
@@ -99,7 +100,7 @@ One verifier's result for one (deployed code, source) pair. Written by the verif
 | `address` | `addr` | Contract address |
 | `code_hash` | `bytes32` | keccak256 of the runtime bytecode the verifier read from the chain |
 | `source_hash` | `bytes32` | Hash of the source bundle that was compiled |
-| `source_key` | `key` | Entity key of that `arkify.source`, so a reader fetches it directly |
+| `source_key` | `key` | Entity key of an `arkify.source` with that hash: for a match, the verifier's own copy |
 | `verdict` | `str` | `full_match`, `partial_match`, `mismatch` or `error` |
 | `verified_at` | `u64` | Unix seconds. Queried as a range. |
 
@@ -135,13 +136,13 @@ type = str('arkify.attestation') AND schema_version = i32(1) AND chain_id = u64(
 type = str('arkify.attestation') AND schema_version = i32(1) AND chain_id = u64(11155111) AND address = addr(0xC02a…6Cc2) AND code_hash = bytes32(0xc0c0…c0c0) AND source_hash = bytes32(0x1111…1111) AND $creator = addr(0xB5F1…B590)
 ```
 
-**4. Recent attestations** (web live feed, first page; new ones then arrive over WebSocket events).
+**4. Recent attestations** (web live feed, first page; new ones then arrive over WebSocket events). With `.createdBy(self)` a verifier reads what it answered in the last day when it starts, so a restart does not redo that work.
 
 ```
 type = str('arkify.attestation') AND schema_version = i32(1) AND verified_at > u64(1791739187)
 ```
 
-**5. Live verifiers, and verifiers seen recently** (web). An expired lease is simply not returned.
+**5. Live verifiers, and verifiers seen recently** (web). An expired lease is simply not returned. With `.createdBy(self)` a starting verifier finds the registration it already holds and renews it instead of creating a second one.
 
 ```
 type = str('arkify.verifier') AND schema_version = i32(1)
@@ -156,11 +157,17 @@ type = str('arkify.request') AND schema_version = i32(1) AND chain_id = u64(1115
 type = str('arkify.request') AND schema_version = i32(1) AND $createdAt > u64(444000)
 ```
 
-**7. Source by content hash** (verifier, web source viewer). Each candidate must still pass the hash check.
+**7. Source by content hash** (verifier, web source viewer). Each candidate must still pass the hash check. With `.createdBy(self)` a verifier finds its own copy.
 
 ```
 type = str('arkify.source') AND schema_version = i32(1) AND source_hash = bytes32(0x1111…1111)
 ```
+
+## Events
+
+Verifiers and the web app subscribe with `watchEntityEvents` over a WebSocket transport, without `fromBlock`. An `EntityCreated` event carries no attributes ([F-005](friction.md)), and the subscription sees every create on the chain, so [`mayBe`](../packages/core/src/events.ts) first tests what the event does carry: each Arkify type is created with a fixed lifetime and fixed flags, so `expiresAt - blockNumber` and `creationFlags` rule out foreign entities without a read. Only a create shaped like a request (24 hours, `readonly` + `permissionlessExtension`) is read back and decoded.
+
+The subscription is the live path. Under it, each verifier runs query 6 once at start-up and once per heartbeat, so a request that arrived while its socket was down is still answered.
 
 Results are paged with the cursor (the node returns at most 200 per page and in no guaranteed order), and sorted on the client by `verified_at`.
 

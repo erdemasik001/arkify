@@ -57,6 +57,7 @@ Format: **surface · version · expected · actual · reproduce · suggested fix
 - **Reproduce:** see `src/types/events.ts`.
 - **Suggested fix:** an attribute filter on the subscription, or include `$creator` and selected attributes in the log.
 - **Measured (11 Oct) [runtime]:** a WebSocket subscription that only listened for 30 s received 20 `EntityCreated` and 6 other events from 2 owners, none of them ours (the network's own `arkiv-chain-indexer-baseload` generator). The read fan-out therefore scales with chain-wide activity, not with the app's. `owner` is an indexed topic in the event ABI, so a topic filter is possible at the `eth_subscribe` level, but `watchEntityEvents` has no parameter for it. Confirmed in the spike: the event object's fields are `type, blockNumber, transactionHash, logIndex, entityKey, owner, expiresAt, creationFlags`, and reading the three attributes of our own entity took a separate `getEntity`.
+- **Workaround:** `EntityCreated` does carry `expiresAt` and `creationFlags`, and Arkify creates each entity type with a fixed lifetime and fixed flags. `mayBe()` in `packages/core/src/events.ts` drops every create whose `expiresAt - blockNumber` and flags do not fit a request, so only candidates cost a read. It works because the expiry of a relative lifetime is exactly the inclusion block plus the lifetime (spike step M4: created at 444788 for 3 blocks, `expiresAt` 444791).
 
 ## F-006 · The Hub landing-page query snippet throws on SDK 0.8.1 [runtime]
 
@@ -145,6 +146,16 @@ Format: **surface · version · expected · actual · reproduce · suggested fix
 - **Actual:** the faucet asks to "sign in with your wallet" and paid 10 GLM to the connected browser wallet. The transfer succeeded on chain, yet the wallet showed nothing because it was not on the Tiramisu network, and the builder reported the tokens as not arrived. The five keys our scripts generate never touch a browser, so they were funded by a second hop: browser wallet to one script wallet, then `pnpm fund`.
 - **Reproduce:** claim with a MetaMask that has never added chain 7738577 and look at the balance.
 - **Suggested fix:** on success, show the transaction link and an "Add Tiramisu to wallet" button, and let the claimer name a recipient address so server-side keys can be funded directly.
+
+## F-015 · A refused WebSocket handshake leaves `watchEntityEvents` silent for good [runtime]
+
+- **Surface:** RPC gateway (WebSocket endpoint), SDK `watchEntityEvents`, viem `webSocket` transport
+- **Version:** public Tiramisu RPC on 12 Oct, `@arkiv-network/sdk@0.8.1`, `viem@2.57.4`
+- **Expected:** a subscription either works or fails in a way the app can recover from, and `reconnect` on the transport covers connection problems.
+- **Actual:** the gateway caps concurrent WebSocket connections per client address. Six handshakes sent at once gave five `101 Switching Protocols` and one `HTTP 429 {"error":"WS_CONN_LIMIT","message":"too many concurrent websocket connections"}`. Starting four verifiers together on one machine, two were refused. In the app the refusal arrives once, through `onError`, as `Received network error or non-101 status code.` with no status or body. After that the watcher delivered nothing: with `reconnect: { attempts: 1000, delay: 2000 }` set on the transport, neither refused verifier received a single event in the next three minutes. Both ran on, heartbeat and all, and never saw the request the other two answered.
+- **Reproduce:** run `for i in 1 2 3 4 5 6; do curl -s -m 4 --http1.1 -i -H 'Connection: Upgrade' -H 'Upgrade: websocket' -H 'Sec-WebSocket-Version: 13' -H 'Sec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==' https://rpc.tiramisu.db-chain.testnet.arkiv.network | head -1 & done; wait`. Or open six `createPublicClient({ transport: webSocket() })` clients and call `watchEntityEvents` on each.
+- **Workaround:** the verifier owns the connection (`packages/verifier/src/verifier.ts`): on `onError` it closes the client and subscribes again with exponential backoff, and because Tiramisu is never quiet, a minute without any event also triggers a reconnect. A request scan with every heartbeat catches whatever was missed. `pnpm e2e` shows a refused verifier reconnecting two seconds later and answering.
+- **Suggested fix:** document the connection limit, pass the gateway's status and body through to `onError`, and have the watcher retry a failed first handshake when `reconnect` is set.
 
 ---
 
