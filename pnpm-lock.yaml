@@ -24,6 +24,9 @@ importers:
       '@arkify/engine':
         specifier: workspace:*
         version: link:packages/engine
+      '@arkify/verifier':
+        specifier: workspace:*
+        version: link:packages/verifier
       '@types/node':
         specifier: ^26.6.4
         version: 26.6.4
@@ -54,6 +57,24 @@ importers:
       solc:
         specifier: 0.8.37
         version: 0.8.37
+      viem:
+        specifier: ^2.57.4
+        version: 2.57.4(typescript@5.9.3)
+
+  packages/verifier:
+    dependencies:
+      '@arkify/core':
+        specifier: workspace:*
+        version: link:../core
+      '@arkify/engine':
+        specifier: workspace:*
+        version: link:../engine
+      '@arkiv-network/sdk':
+        specifier: 0.8.1
+        version: 0.8.1(typescript@5.9.3)(viem@2.57.4(typescript@5.9.3))
+      dotenv:
+        specifier: ^18.0.6
+        version: 18.0.6
       viem:
         specifier: ^2.57.4
         version: 2.57.4(typescript@5.9.3)

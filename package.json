@@ -12,7 +12,9 @@
     "measure-sources": "tsx scripts/measure-sources.ts",
     "typecheck": "tsc --noEmit -p .",
     "test": "vitest run --exclude '**/*.network.test.ts'",
-    "test:network": "vitest run network.test"
+    "test:network": "vitest run network.test",
+    "verifier": "tsx packages/verifier/src/main.ts",
+    "e2e": "tsx scripts/e2e.ts"
   },
   "dependencies": {
     "@arkiv-network/sdk": "0.8.1",
@@ -22,6 +24,7 @@
   "devDependencies": {
     "@arkify/core": "workspace:*",
     "@arkify/engine": "workspace:*",
+    "@arkify/verifier": "workspace:*",
     "@types/node": "^26.6.4",
     "tsx": "^4.23.15",
     "typescript": "~5.9.3",
