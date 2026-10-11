@@ -48,7 +48,7 @@ Format: **surface · version · expected · actual · reproduce · suggested fix
 - **Reproduce:** see `src/query/queryBuilder.ts`, `createdBy()`.
 - **Suggested fix:** accept `Hex | readonly Hex[]` in `createdBy()` / `ownedBy()`.
 
-## F-005 · Entity events carry no attributes or creator [source — to be confirmed at runtime]
+## F-005 · Entity events carry no attributes or creator [source + runtime]
 
 - **Surface:** SDK (`watchEntityEvents`) / protocol events
 - **Version:** `@arkiv-network/sdk@0.8.1`
@@ -56,7 +56,7 @@ Format: **surface · version · expected · actual · reproduce · suggested fix
 - **Actual:** `EntityCreatedEvent` has `entityKey, owner, expiresAt, creationFlags` only. A worker that watches for `type = "arkify.request"` must call `getEntity` for every created entity on the chain (N+1 reads).
 - **Reproduce:** see `src/types/events.ts`.
 - **Suggested fix:** an attribute filter on the subscription, or include `$creator` and selected attributes in the log.
-- **Measured (11 Oct) [runtime]:** a WebSocket subscription that only listened for 30 s received 20 `EntityCreated` and 6 other events from 2 owners, none of them ours (the network's own `arkiv-chain-indexer-baseload` generator). The read fan-out therefore scales with chain-wide activity, not with the app's. `owner` is an indexed topic in the event ABI, so a topic filter is possible at the `eth_subscribe` level, but `watchEntityEvents` has no parameter for it.
+- **Measured (11 Oct) [runtime]:** a WebSocket subscription that only listened for 30 s received 20 `EntityCreated` and 6 other events from 2 owners, none of them ours (the network's own `arkiv-chain-indexer-baseload` generator). The read fan-out therefore scales with chain-wide activity, not with the app's. `owner` is an indexed topic in the event ABI, so a topic filter is possible at the `eth_subscribe` level, but `watchEntityEvents` has no parameter for it. Confirmed in the spike: the event object's fields are `type, blockNumber, transactionHash, logIndex, entityKey, owner, expiresAt, creationFlags`, and reading the three attributes of our own entity took a separate `getEntity`.
 
 ## F-006 · The Hub landing-page query snippet throws on SDK 0.8.1 [runtime]
 
@@ -98,11 +98,59 @@ Format: **surface · version · expected · actual · reproduce · suggested fix
 - **Reproduce:** `await client.query("$expiresAt > 0").catch((e) => console.log(e.message, e.data))`; compare with `curl -s -X POST -H 'content-type: application/json' --data '{"jsonrpc":"2.0","id":1,"method":"arkiv_query","params":["$expiresAt > 0",{}]}' https://rpc.tiramisu.db-chain.testnet.arkiv.network`.
 - **Suggested fix:** in `asQueryError`, prefer `data.message` (and `data.position`) over `shortMessage`.
 
+## F-010 · The engine rejects uppercase attribute names that the SDK accepts [runtime]
+
+- **Surface:** SDK (attribute-name validation, revert explanation) vs the Tiramisu engine
+- **Version:** `@arkiv-network/sdk@0.8.1`, Tiramisu at block ~444,200
+- **Expected:** a name that passes `validateAttributeName` can be written. The SDK's rule is `/^[A-Za-z][A-Za-z0-9._-]*$/` and its errors say "contain only A-Z, a-z, 0-9 … Names are case-sensitive".
+- **Actual:** any uppercase letter is rejected by the engine at gas estimation. `chainId`, `Chain`, `aB` and `ABC` fail; `chainid`, `chain_id`, `chain.id`, `chain-id` and `c1` are accepted. The SDK then explains the revert with a sentence that contradicts it: `an attribute name holds "I" (0x49) at byte 5, which is outside the name charset ("A"-"Z", "a"-"z", "0"-"9", ".", "-" and "_", with a letter first)`.
+- **Impact:** our first create failed, because every camelCase name in the draft schema (`chainId`, `codeHash`, `verifiedAt`) is invalid. Arkify's attributes are snake_case for this reason.
+- **Reproduce:** `client.createEntity({ payload: new Uint8Array(), contentType: "application/octet-stream", attributes: { chainId: "x" }, expires: ExpirationTime.fromMinutes(10) })`; `pnpm spike` records it under step M3 (`upperCaseName`).
+- **Suggested fix:** make `NAME_RE` lowercase-only so the mistake is caught before a request, and correct the charset text in `src/utils/revert.ts` and the `InvalidAttributeNameError` message.
+
+## F-011 · A payload at the SDK's 128 KiB limit cannot be sent through the public RPC [runtime]
+
+- **Surface:** RPC gateway vs SDK (`MAX_PAYLOAD_BYTES`)
+- **Version:** `@arkiv-network/sdk@0.8.1`, `viem@2.57.4`, public Tiramisu RPC
+- **Expected:** a payload of `MAX_PAYLOAD_BYTES` (131072) can be created; 131073 is refused by the SDK with a clear message.
+- **Actual:** the gateway caps the HTTP body at about 256 KiB and answers `HTTP 413 {"error":"BAD_REQUEST","message":"request body too large"}`. Calldata is hex in JSON, so it doubles: with two short attributes the largest payload that went through was 129,728 bytes and 129,792 was refused. The limit shrinks as attributes are added. The SDK reports the 413 as `Transaction failed: Execution error without revert data`, which says nothing about size.
+- **Reproduce:** create an entity with `payload: new Uint8Array(randomBytes(131072))` (step M1 of `pnpm spike`, `atSdkLimit`); or POST any JSON-RPC body over 262,144 bytes with curl.
+- **Workaround:** Arkify caps a source bundle at 120 KiB after compression (122,880 bytes went through at 4,942,360 gas).
+- **Suggested fix:** lower `MAX_PAYLOAD_BYTES` to what the gateway accepts or raise the gateway limit, and surface HTTP 413 as a size error.
+
+## F-012 · `exists`, `ne` and `hasType` are exported by the SDK and rejected by the node [runtime]
+
+- **Surface:** SDK (`@arkiv-network/sdk/query`) vs RPC (`arkiv_query`)
+- **Version:** `@arkiv-network/sdk@0.8.1`, Tiramisu at block ~444,700
+- **Expected:** every operator the query module exports and documents can be run.
+- **Actual:** three cannot. The node answers: `exists(…) is not supported — the index has no per-attribute presence set in this version`; `!= is not part of the query language — write NOT (attr = value) for the complement`; `typeof(…) is not supported — a value predicate already asserts the attribute's type`. Because of F-009 the developer sees only `Query rejected (type, -32002): Requested resource not available.` `eq`, `gt`/`gte`/`lt`/`lte`, `and`, `or`, `not(eq(...))` and `startsWith` all work.
+- **Reproduce:** `await client.query(and(eq("app", "x"), exists("score")).toString())`, same with `ne("a", "b")` and `hasType("score", "i32")`; step 3 of `pnpm spike` records all three (`exportedOperators`).
+- **Suggested fix:** remove or mark the three builders until the node supports them; render `ne(a, b)` as `NOT a = b`.
+
+## F-013 · The public RPC meters anonymous traffic, and a drained budget looks like a hang [runtime]
+
+- **Surface:** RPC gateway, Access keys; SDK README; viem transport defaults
+- **Version:** public Tiramisu RPC on 11 Oct, `viem@2.57.4`
+- **Expected:** limits on the public endpoint are stated where a builder starts (the SDK README has no mention of limits, quotas or keys), and hitting one fails loudly.
+- **Actual:** two meters exist. Every response carries `ratelimit: limit=600, remaining=…, reset=…` (requests, about a minute). Every `arkiv_query` carries `arkiv-cost: 100` against an anonymous budget of 10,000, and when that is spent the gateway answers `HTTP 429 {"error":"ANON_COST_LIMITED","message":"unauthenticated query budget exhausted; get an API key at https://hub.arkiv.network for a monthly quota"}` with `retry-after: 8`. viem's `http()` transport retries a 429 three times and honours `Retry-After`, so each query stalled for about half a minute before failing and our spike sat for over ten minutes with no output. One full spike run is 45 queries (cost 4,500); two runs and a probe back to back drained the budget.
+- **Reproduce:** issue roughly 100 `arkiv_query` calls within a few minutes without a key (three `pnpm spike` runs back to back did it for us), then read the response headers of the next one with `curl -D -`. We have not measured how fast the budget refills; it was usable again a few minutes later.
+- **Workaround:** reads use `http(url, { retryCount: 0 })` and tally the headers through `onFetchResponse` (see `scripts/spike.ts`); the app keeps the number of queries per view small and reacts to WebSocket events instead of polling.
+- **Suggested fix:** document both meters and the `Arkiv-Cost` header in the README, and have the SDK turn `ANON_COST_LIMITED` into a named error that carries `retryAfter`.
+
+## F-014 · A faucet claim looks lost until the wallet is switched to Tiramisu [runtime]
+
+- **Surface:** Hub faucet (https://hub.arkiv.network/faucet)
+- **Version:** Hub build `production · d5494dd`, MetaMask
+- **Expected:** after a successful claim the builder sees the testnet GLM, and can fund the wallets an app actually runs with.
+- **Actual:** the faucet asks to "sign in with your wallet" and paid 10 GLM to the connected browser wallet. The transfer succeeded on chain, yet the wallet showed nothing because it was not on the Tiramisu network, and the builder reported the tokens as not arrived. The five keys our scripts generate never touch a browser, so they were funded by a second hop: browser wallet to one script wallet, then `pnpm fund`.
+- **Reproduce:** claim with a MetaMask that has never added chain 7738577 and look at the balance.
+- **Suggested fix:** on success, show the transaction link and an "Add Tiramisu to wallet" button, and let the claimer name a recipient address so server-side keys can be funded directly.
+
 ---
 
 ## Working paths (tested, behaved as documented)
 
-Read-only paths, tested on 11 Oct without a funded wallet. Write paths follow once `pnpm spike` has run.
+W-001 to W-003 were tested on 11 Oct without a funded wallet. The rest come from `pnpm spike` (run `mv43abjc`, 11 Oct, 16/16 steps), whose full output with every transaction hash is in [`spike-run.json`](spike-run.json). Signers: requester `0xfEBd2309E6C92c1F924A42Dc78d0E8D95Ea666C0`, verifier-a `0xB5F160b92c066f9613fb05227744c604683cB590`.
 
 ### W-001 · Block timing matches the SDK constant [runtime]
 
@@ -119,4 +167,44 @@ Read-only paths, tested on 11 Oct without a funded wallet. Write paths follow on
 
 - **Surface:** SDK `watchEntityEvents`, WebSocket endpoint
 - **Tested:** `createPublicClient({ chain: tiramisu, transport: webSocket() })` with no `fromBlock` delivered 26 events in 30 s with no errors and no polling loop of ours. Latency against our own writes is measured in the spike.
+
+### W-004 to W-013 · Write, query and lifecycle paths [runtime]
+
+Each row is a spike step: what we expected from the SDK source, and what Tiramisu did.
+
+| # | Surface | Tested | Result |
+|---|---|---|---|
+| W-004 | SDK `createEntity`, `getEntity` | Create with `str`, `u64`, `addr`, `bytes32`, `i32` and `bool` attributes and a JSON payload, then read back. | Every value and type round-trips; `creator` and `owner` are the signer. Tx `0x74670ee9f4e759600af0609f6f8bff7f514e1e3659d62cad17c72c2d699038b0`. |
+| W-005 | SDK query builder, RPC | Eight predicates with `createdBy`: `run = str('mv43abjc') AND type = str('arkify.spike') AND chain_id = u64(11155111) AND address = addr(0xC02a…6Cc2) AND code_hash = bytes32(0x9b27…e92c) AND verified_at > u64(1791739187) AND verified_at < u64(1791739307) AND $creator = addr(0xfEBd…66C0)`. Also `createdBy(other)`, an `OR` over two `$creator` values, a `$expiresAt` range, a negative `i32` range, `not(eq)` and `startsWith`. | Exactly one result where expected and none for the wrong creator. The rendered text runs unchanged as a raw `arkiv_query`. |
+| W-006 | SDK `limit`, `cursor`, `for await` | Five entities read with `limit(2)`. | Three pages, each entity once. Page order was `[1,4] [3,2] [0]`: there is no ordering, sort on the client. `limit(201)` is refused by the SDK. |
+| W-007 | SDK `extendEntity` | Extend a 1-hour entity to "2 hours", then to "30 minutes". | The expiry is set from now, not added: it moved by 1,806 blocks. Shortening reverts with `already expires at block …, so extending it to … would shorten its life`. 25,210 gas. |
+| W-008 | SDK `patchEntity` | Owner sets two attributes and unsets one; a stranger tries the same. | Attributes change, `updatedAt` moves, expiry and payload stay. The stranger gets `is owned by …, not …`. 55,320 gas. |
+| W-009 | Creation flags | `readonly` + `permissionlessExtension` entity: stranger extends, stranger patches, owner patches, owner extends. Control: stranger extends an entity without the flag. | Stranger extension succeeds and does not change the owner (tx `0x759ba4a47f5596628cca999c812517e4109cd79fd84d59e50c001a03f23d93b1`); both patches revert (`not owner`, `was created readonly`); the control reverts. Exactly as documented. |
+| W-010 | SDK `executeBatch`, `predictEntityKeys` | (a) Patch and extend one entity in one transaction. (b) Two creates where the second stores the first's predicted key as a `key` attribute. (c) A create plus a patch of a missing entity, sent with a fixed gas limit so it is really mined. | (a) One tx, 55,128 gas. (b) The predicted key equals the minted key and `source_key = key(…)` finds the second entity. (c) Tx `0xeca23fb1a33afa2df799736e892e31465fcbc343fab2f5ff2bbe173a74107b56` reverted and the create was not applied. |
+| W-011 | SDK `watchEntityEvents`, WebSocket | Subscribe, then create an entity over HTTP. | The event arrived 3.3 s after sending and about 1 s before the receipt poll returned. |
+| W-012 | SDK `changeOwnership` | Transfer to another wallet, then patch as old and new owner. | `$owner` moves, `$creator` does not. The old owner is refused, the new one succeeds; `createdBy(original)` still finds the entity and `ownedBy(original)` no longer does. |
+| W-013 | Entity Expiration | Same 1,024-byte entity created for 1 hour, 180 days, 100 years and `permanent()`. Separately, a 3-block lifetime. | All four cost 116,768 gas: lifetime is free, so it can follow product logic alone. The 3-block entity (created at 444788, expiry 444791) was unreadable from block 444791 and gone from queries; its creation receipt is still served. |
+
+### W-014 · Limits and costs measured [runtime]
+
+- **Attributes:** 30 user attributes fit beside `$payload` and `$contentType` (32 cells), with a 32-byte name and a 128-byte `str` value; the SDK refuses a 33rd cell, a 33-byte name, a 129-byte string and reserved names before any request, each with a message that names the fix.
+- **Payload:** 1,024, 32,768 and 122,880 bytes of random data read back intact in about 0.2 s. See F-011 for the ceiling.
+- **Fees** at a 1 gwei base fee (1 GLM = 10^18 wei):
+
+| Operation | Gas | Fee (GLM) |
+|---|---|---|
+| Create, 2 attributes, empty payload | 95,384 | 0.000095 |
+| Create, 10 attributes, 46 B payload | 130,976 | 0.000131 |
+| Create, 30 attributes | 230,496 | 0.000230 |
+| Create, 1,024 B payload | 116,768 | 0.000117 |
+| Create, 32,768 B payload | 1,347,750 | 0.001348 |
+| Create, 122,880 B payload | 4,942,360 | 0.004942 |
+| Batch of 5 small creates | 501,920 | 0.000502 |
+| Batch of 2 linked creates | 196,168 | 0.000196 |
+| Extend | 25,210 | 0.000025 |
+| Patch (set 2, unset 1) | 55,320 | 0.000055 |
+| Batch: patch + extend (heartbeat) | 55,128 | 0.000055 |
+| Change ownership | 25,430 | 0.000025 |
+
+A payload costs about 40 gas per byte. A verifier heartbeat every 5 minutes is about 0.016 GLM a day, so one 10 GLM faucet claim covers every wallet through judging.
 

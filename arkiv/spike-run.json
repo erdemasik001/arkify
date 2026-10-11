@@ -1,0 +1,603 @@
+{
+  "ranAt": "2026-10-11T17:22:14.888Z",
+  "run": "mv43abjc",
+  "sdk": "@arkiv-network/sdk@0.8.1",
+  "chainId": 7738577,
+  "wallets": {
+    "requester": "0xfEBd2309E6C92c1F924A42Dc78d0E8D95Ea666C0",
+    "verifier": "0xB5F160b92c066f9613fb05227744c604683cB590"
+  },
+  "results": [
+    {
+      "id": "0",
+      "title": "preflight",
+      "status": "pass",
+      "ms": 312,
+      "detail": {
+        "run": "mv43abjc",
+        "chainId": 7738577,
+        "timing": {
+          "currentBlock": "444747",
+          "currentBlockTime": 1791739246,
+          "blockDuration": 2
+        },
+        "measuredBlockSeconds": 2,
+        "blockGasLimit": "36000000",
+        "entityCount": 1925,
+        "gasPriceWei": "1000000002",
+        "requester": {
+          "address": "0xfEBd2309E6C92c1F924A42Dc78d0E8D95Ea666C0",
+          "balanceGlm": "1.856739527913479056"
+        },
+        "verifier": {
+          "address": "0xB5F160b92c066f9613fb05227744c604683cB590",
+          "balanceGlm": "1.899904435999808872"
+        }
+      }
+    },
+    {
+      "id": "1",
+      "title": "createEntity with typed attributes",
+      "status": "pass",
+      "ms": 3268,
+      "detail": {
+        "txHash": "0x74670ee9f4e759600af0609f6f8bff7f514e1e3659d62cad17c72c2d699038b0",
+        "entityKey": "0xdd66f66e61a4f77709a8388083d8f9eb79ee60741da5908940c0d65fcfa8f928",
+        "expiresAt": "446549",
+        "block": "444749",
+        "gasUsed": "130976",
+        "feeGlm": "0.000130976000261952"
+      }
+    },
+    {
+      "id": "2",
+      "title": "getEntity reads back every field",
+      "status": "pass",
+      "ms": 106,
+      "detail": {
+        "key": "0xdd66f66e61a4f77709a8388083d8f9eb79ee60741da5908940c0d65fcfa8f928",
+        "owner": "0xfEBd2309E6C92c1F924A42Dc78d0E8D95Ea666C0",
+        "creator": "0xfEBd2309E6C92c1F924A42Dc78d0E8D95Ea666C0",
+        "createdAt": "444749",
+        "updatedAt": "444749",
+        "expiresAt": "446549",
+        "creationFlags": {
+          "readonly": false,
+          "permissionlessExtension": false,
+          "raw": 0
+        },
+        "contentType": "application/json",
+        "attributeSchema": {
+          "address": "addr",
+          "app": "str",
+          "chain_id": "u64",
+          "code_hash": "bytes32",
+          "live": "bool",
+          "run": "str",
+          "score": "i32",
+          "type": "str",
+          "verdict": "str",
+          "verified_at": "u64"
+        },
+        "attributes": {
+          "address": {
+            "type": "addr",
+            "value": "0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2"
+          },
+          "app": {
+            "type": "str",
+            "value": "arkify-spike"
+          },
+          "chain_id": {
+            "type": "u64",
+            "value": "11155111"
+          },
+          "code_hash": {
+            "type": "bytes32",
+            "value": "0x9b27306f90ff5cfe63b97b85592f8315f2c72e74b59b0341daafdb785694e92c"
+          },
+          "live": {
+            "type": "bool",
+            "value": true
+          },
+          "run": {
+            "type": "str",
+            "value": "mv43abjc"
+          },
+          "score": {
+            "type": "i32",
+            "value": -5
+          },
+          "type": {
+            "type": "str",
+            "value": "arkify.spike"
+          },
+          "verdict": {
+            "type": "str",
+            "value": "full_match"
+          },
+          "verified_at": {
+            "type": "u64",
+            "value": "1791739247"
+          }
+        },
+        "payloadJson": {
+          "note": "arkify spike",
+          "engine": "evm-solcjs"
+        }
+      }
+    },
+    {
+      "id": "3",
+      "title": "compound query, createdBy, ranges, trusted-creator OR",
+      "status": "pass",
+      "ms": 5106,
+      "detail": {
+        "compoundText": "run = str('mv43abjc') AND type = str('arkify.spike') AND chain_id = u64(11155111) AND address = addr(0xC02aaA39b223FE8D0A0e5C4F27eAD9083C756Cc2) AND code_hash = bytes32(0x9b27306f90ff5cfe63b97b85592f8315f2c72e74b59b0341daafdb785694e92c) AND verified_at > u64(1791739187) AND verified_at < u64(1791739307) AND $creator = addr(0xfEBd2309E6C92c1F924A42Dc78d0E8D95Ea666C0)",
+        "trustedText": "run = str('mv43abjc') AND type = str('arkify.spike') AND ($creator = addr(0xfEBd2309E6C92c1F924A42Dc78d0E8D95Ea666C0) OR $creator = addr(0xB5F160b92c066f9613fb05227744c604683cB590))",
+        "queryBlock": "444749",
+        "createdAtViaBuilder": "\"$createdAt\" is returned in query results but carries no index, so it cannot be filtered on. Select it and filter the results in JavaScript instead.",
+        "createdAtViaRawQuery": "accepted and applied",
+        "untypedLiteral": {
+          "sdkMessage": "Query rejected (type, -32002): Requested resource not available.. Query: $expiresAt > 0",
+          "nodeData": {
+            "message": "this system attribute holds u64 — write u64(0)",
+            "position": 13
+          }
+        },
+        "exportedOperators": {
+          "exists": "rejected by the node: exists(…) is not supported — the index has no per-attribute presence set in this version",
+          "ne": "rejected by the node: != is not part of the query language — write NOT (attr = value) for the complement",
+          "hasType": "rejected by the node: typeof(…) is not supported — a value predicate already asserts the attribute's type"
+        }
+      }
+    },
+    {
+      "id": "4",
+      "title": "cursor pagination",
+      "status": "pass",
+      "ms": 2741,
+      "detail": {
+        "txHash": "0x4b9474afbab7c0ef11a71355f466c43fe566a9e5d3a86135ac5f08ceccf5d7de",
+        "block": "444753",
+        "gasUsed": "501920",
+        "feeGlm": "0.00050192000100384",
+        "pages": [
+          [
+            1,
+            4
+          ],
+          [
+            3,
+            2
+          ],
+          [
+            0
+          ]
+        ],
+        "cursorSample": "(last page has no cursor)",
+        "limit201": "limit 201 exceeds the node maximum of 200. Page through the results with the cursor instead."
+      }
+    },
+    {
+      "id": "5",
+      "title": "extendEntity sets a new expiry and refuses to shorten",
+      "status": "pass",
+      "ms": 4881,
+      "detail": {
+        "txHash": "0x39db6c263264fbf366604307878a4bb07f38997f7e36485fe50ef40fc4cdb461",
+        "block": "444755",
+        "gasUsed": "25210",
+        "feeGlm": "0.00002521000005042",
+        "expiresAtBefore": "446549",
+        "expiresAtAfter": "448355",
+        "blocksAdded": "1806",
+        "sdkEstimate": "448355",
+        "shorterExtension": "Transaction failed: entity 0xdd66f66e…a8f928 already expires at block 448355, so extending it to 445655 would shorten its life"
+      }
+    },
+    {
+      "id": "6",
+      "title": "patchEntity changes attributes only, owner-only",
+      "status": "pass",
+      "ms": 3604,
+      "detail": {
+        "txHash": "0x99316aad3b7f6ea7ef2f92de1711b1b0480dd4f217a61d43d31e76a30f9db65e",
+        "block": "444757",
+        "gasUsed": "55320",
+        "feeGlm": "0.00005532000011064",
+        "updatedAtBefore": "444755",
+        "updatedAtAfter": "444757",
+        "strangerPatch": "Transaction failed: entity 0xdd66f66e…a8f928 is owned by 0xfEBd2309E6C92c1F924A42Dc78d0E8D95Ea666C0, not 0xB5F160b92c066f9613fb05227744c604683cB590"
+      }
+    },
+    {
+      "id": "7",
+      "title": "readonly + permissionlessExtension flags",
+      "status": "pass",
+      "ms": 10313,
+      "detail": {
+        "entityKey": "0x531ef01ec4345e8e4ca76c3bb48b6dc1661aad4fb38bc52f9e9eeee8c41e7a61",
+        "creationFlags": {
+          "readonly": true,
+          "permissionlessExtension": true,
+          "raw": 3
+        },
+        "create": {
+          "txHash": "0x9040fc1e58405ddb1302c29c510536dda15dc9268565d37260e214e246cd276a",
+          "block": "444759",
+          "gasUsed": "95496",
+          "feeGlm": "0.000095496000190992"
+        },
+        "strangerExtend": {
+          "txHash": "0x759ba4a47f5596628cca999c812517e4109cd79fd84d59e50c001a03f23d93b1",
+          "block": "444760",
+          "gasUsed": "25210",
+          "feeGlm": "0.00002521000005042"
+        },
+        "ownerExtend": {
+          "txHash": "0xafca8b035af06ae6c147a3ba25f9b0a3a9d7c122b0ed4258d24557f0d3d112b8",
+          "block": "444762",
+          "gasUsed": "25210",
+          "feeGlm": "0.00002521000005042"
+        },
+        "strangerPatch": "Transaction failed: entity 0x531ef01e…1e7a61 is owned by 0xfEBd2309E6C92c1F924A42Dc78d0E8D95Ea666C0, not 0xB5F160b92c066f9613fb05227744c604683cB590",
+        "ownerPatch": "Transaction failed: entity 0x531ef01e…1e7a61 was created readonly, so its contents can never change. Its expiry can still be extended, and it can be transferred or deleted",
+        "strangerExtendWithoutFlag": "Transaction failed: entity 0xdd66f66e…a8f928 is owned by 0xfEBd2309E6C92c1F924A42Dc78d0E8D95Ea666C0, not 0xB5F160b92c066f9613fb05227744c604683cB590"
+      }
+    },
+    {
+      "id": "8",
+      "title": "executeBatch: heartbeat, predicted keys, atomic revert",
+      "status": "pass",
+      "ms": 6899,
+      "detail": {
+        "heartbeat": {
+          "txHash": "0xac8c4b2ee90450fc61a1f525264c21a8017aa1d3e3eae42346f2ea9bcc478672",
+          "block": "444764",
+          "gasUsed": "55128",
+          "feeGlm": "0.000055128000110256"
+        },
+        "linked": {
+          "txHash": "0x39ae85436fed31e927e14ae6bf77bbcf8326f171cbcd1684809da67a01b7e670",
+          "block": "444765",
+          "gasUsed": "196168",
+          "feeGlm": "0.000196168000392336"
+        },
+        "predictedKey": "0x0a5920c8d8b041c0ea4d3e14381d58f9dfd00eae02e96a27529cd9de5959e7aa",
+        "revertedBatch": "Transaction 0xeca23fb1a33afa2df799736e892e31465fcbc343fab2f5ff2bbe173a74107b56 reverted. Reason: no entity 0xf43263bc…636a3a — it may have been deleted, or have expired"
+      }
+    },
+    {
+      "id": "9",
+      "title": "watchEntityEvents over WebSocket",
+      "status": "pass",
+      "ms": 6454,
+      "detail": {
+        "transport": "webSocket",
+        "txHash": "0x7cd3303269ba0ee128435ee3422e45deb6837c885e866dd2ffb1df3daaa4bb64",
+        "block": "444769",
+        "gasUsed": "95384",
+        "feeGlm": "0.000095384000190768",
+        "eventFields": [
+          "type",
+          "blockNumber",
+          "transactionHash",
+          "logIndex",
+          "entityKey",
+          "owner",
+          "expiresAt",
+          "creationFlags"
+        ],
+        "event": {
+          "type": "EntityCreated",
+          "blockNumber": "444769",
+          "transactionHash": "0x7cd3303269ba0ee128435ee3422e45deb6837c885e866dd2ffb1df3daaa4bb64",
+          "logIndex": 0,
+          "entityKey": "0x7165cfe78ed927e4aac0ba27b9fa8f8850ee3f4dce6584a5915036d1c3e3ee27",
+          "owner": "0xfEBd2309E6C92c1F924A42Dc78d0E8D95Ea666C0",
+          "expiresAt": "446569",
+          "creationFlags": {
+            "readonly": false,
+            "permissionlessExtension": false,
+            "raw": 0
+          }
+        },
+        "msFromSendToEvent": 3257,
+        "msFromReceiptToEvent": -983,
+        "createdEventsSeenFromAllApps": 5,
+        "attributesNeedGetEntity": [
+          "app",
+          "kind",
+          "run"
+        ],
+        "errors": []
+      }
+    },
+    {
+      "id": "10",
+      "title": "changeOwnership moves $owner, never $creator",
+      "status": "pass",
+      "ms": 5604,
+      "detail": {
+        "transfer": {
+          "txHash": "0x379961cd6362f58a675deab92835a5810f317ef6bc32e77298a35ebe8444dc8c",
+          "block": "444771",
+          "gasUsed": "25430",
+          "feeGlm": "0.00002543000005086"
+        },
+        "newOwnerPatch": {
+          "txHash": "0xb91ff99800cd469c249b040d80696ad3ec294bed2a623dd88d69651ae4517424",
+          "block": "444772",
+          "gasUsed": "45144",
+          "feeGlm": "0.000045144000090288"
+        },
+        "owner": "0xB5F160b92c066f9613fb05227744c604683cB590",
+        "creator": "0xfEBd2309E6C92c1F924A42Dc78d0E8D95Ea666C0",
+        "oldOwnerPatch": "Transaction failed: entity 0xdd66f66e…a8f928 is owned by 0xB5F160b92c066f9613fb05227744c604683cB590, not 0xfEBd2309E6C92c1F924A42Dc78d0E8D95Ea666C0"
+      }
+    },
+    {
+      "id": "M1",
+      "title": "payload size: what the SDK allows and what the RPC accepts",
+      "status": "pass",
+      "ms": 12011,
+      "detail": {
+        "MAX_PAYLOAD_BYTES": 131072,
+        "sizes": {
+          "1024 B": {
+            "txHash": "0x4c7771ffdb0c00ed1408fc7d2350c5be1a4b90cc0093ef709e86f1a22879cac4",
+            "block": "444774",
+            "gasUsed": "116768",
+            "feeGlm": "0.000116768000233536",
+            "readMs": 192
+          },
+          "32768 B": {
+            "txHash": "0xcdd7539e068a056ce4773cf5c0e5c78a261c9ce696e98dacb6ecf1cec694445d",
+            "block": "444776",
+            "gasUsed": "1347750",
+            "feeGlm": "0.0013477500026955",
+            "readMs": 217
+          },
+          "122880 B": {
+            "txHash": "0x1331e0308caca0833ba9eff7b945b2e9a21b8a8fac8b49303f54d14c4c8fcddc",
+            "block": "444777",
+            "gasUsed": "4942360",
+            "feeGlm": "0.00494236000988472",
+            "readMs": 245
+          }
+        },
+        "atSdkLimit": "rejected (HTTP 413): Transaction failed: Execution error without revert data",
+        "overSdkLimit": "Invalid bytes value \"<131073 bytes>\": 131073 bytes exceeds the 131072-byte payload limit. Store the bulk elsewhere and keep a reference to it on the entity."
+      }
+    },
+    {
+      "id": "M2",
+      "title": "lifetime does or does not change the fee",
+      "status": "pass",
+      "ms": 15614,
+      "detail": {
+        "1 hour": {
+          "txHash": "0x99ca3bb915fc8a501b922c1ed4b5a47ae63ec16f53df022a2cbfd6f07a1e0ce7",
+          "block": "444780",
+          "gasUsed": "116768",
+          "feeGlm": "0.000116768000233536",
+          "entityKey": "0x9a633cbc06708b799649be5c044c2c72a3e2467387dc4328f7eb36b3cee99ab7",
+          "expiresAt": "446580"
+        },
+        "180 days": {
+          "txHash": "0x7909ddc79b57f2995ace1668e07f58fb74abd404962eb495985352482d58c500",
+          "block": "444782",
+          "gasUsed": "116768",
+          "feeGlm": "0.000116768000233536",
+          "entityKey": "0xdca3d06a7b37c13fb98d6c27c5ae1c1e77adb9e51fd8c1ab5b54ebd54dd44f13",
+          "expiresAt": "8220782"
+        },
+        "100 years": {
+          "txHash": "0xe2a64c5485ea5ef2facb1ded2a1834a6cc5a527b0c2c08f9c0518ecaf8692bdd",
+          "block": "444784",
+          "gasUsed": "116768",
+          "feeGlm": "0.000116768000233536",
+          "entityKey": "0x1c1d551b1ae9cb16eb4086d6902e339ffc8a7cd336a259a92ec130994aba809a",
+          "expiresAt": "1577244784"
+        },
+        "permanent": {
+          "txHash": "0x9575277808eecfc1973907bb2128e3793c070daf3bada41bb691742b99b68450",
+          "block": "444786",
+          "gasUsed": "116768",
+          "feeGlm": "0.000116768000233536",
+          "entityKey": "0x10b23b79fa9c5a5ca980b8fa2be159019df181bc3efa80b4152acc61d4aca4b5",
+          "expiresAt": "18446744073709551615"
+        }
+      }
+    },
+    {
+      "id": "M3",
+      "title": "attribute count, name length and string length limits",
+      "status": "pass",
+      "ms": 2364,
+      "detail": {
+        "txHash": "0x8fa1b9b8a386f36bd3b9abceacb1da83253e04b1b91506b0f61e2a74095834f0",
+        "block": "444787",
+        "gasUsed": "230496",
+        "feeGlm": "0.000230496000460992",
+        "userAttributeSlots": 30,
+        "MAX_NAME_BYTES": 32,
+        "MAX_STRING_BYTES": 128,
+        "oneAttributeTooMany": "An entity may carry at most 32 attributes, got 33.",
+        "nameTooLong": "Invalid attribute name \"nnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnnn\": the name is 33 bytes long. Names must be 1-32 bytes, start with a letter, and contain only A-Z, a-z, 0-9, \".\", \"-\" or \"_\". Names are case-sensitive.",
+        "valueTooLong": "Invalid str value \"vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv...\": 129 UTF-8 bytes exceeds the 128-byte limit on a str. Store the long form in the entity payload and keep a short, queryable key here.",
+        "reservedName": "Invalid attribute name \"key\": \"key\" is reserved by the query language, so an attribute with this name could never be queried. Names must be 1-32 bytes, start with a letter, and contain only A-Z, a-z, 0-9, \".\", \"-\" or \"_\". Names are case-sensitive.",
+        "upperCaseName": "rejected: Transaction failed: an attribute name holds \"I\" (0x49) at byte 5, which is outside the name charset (\"A\"-\"Z\", \"a\"-\"z\", \"0\"-\"9\", \".\", \"-\" and \"_\", with a letter first)"
+      }
+    },
+    {
+      "id": "M4",
+      "title": "an expired entity disappears, its creation tx does not",
+      "status": "pass",
+      "ms": 7822,
+      "detail": {
+        "txHash": "0xfed0ef630622d65f94ac1e7c95111fa708299ce7a4ab763001ad41511a4cb828",
+        "block": "444788",
+        "gasUsed": "95560",
+        "feeGlm": "0.00009556000019112",
+        "entityKey": "0x375b704f59e1c30d77063ec4c17a6d12d2076e4d82b8830710e27f612fa14eba",
+        "createdBlock": "444788",
+        "expiresAt": "444791",
+        "firstSeenGoneAtBlock": "444791",
+        "secondsUntilGone": 5.941,
+        "getEntityAfterExpiry": "No live entity with key 0x375b704f59e1c30d77063ec4c17a6d12d2076e4d82b8830710e27f612fa14eba. It was never created, or it has been deleted or has expired.",
+        "queryAfterExpiry": 0,
+        "creationReceiptStillAvailable": "success",
+        "creationLogs": 1
+      }
+    },
+    {
+      "id": "M5",
+      "title": "cost and RPC quota summary",
+      "status": "pass",
+      "ms": 189,
+      "detail": {
+        "gasPriceWei": "1000000002",
+        "requesterBalanceGlm": "1.848192687896385376",
+        "verifierBalanceGlm": "1.899834081999668164",
+        "rpcQuota": {
+          "arkivQueries": 45,
+          "arkivCost": 4500,
+          "http429": 0,
+          "lowestRemaining": {
+            "limit=600": 287
+          }
+        },
+        "costs": [
+          {
+            "label": "create (10 attributes, 46 B payload)",
+            "txHash": "0x74670ee9f4e759600af0609f6f8bff7f514e1e3659d62cad17c72c2d699038b0",
+            "gasUsed": "130976",
+            "feeGlm": "0.000130976000261952"
+          },
+          {
+            "label": "batch of 5 creates (2 attributes, empty payload)",
+            "txHash": "0x4b9474afbab7c0ef11a71355f466c43fe566a9e5d3a86135ac5f08ceccf5d7de",
+            "gasUsed": "501920",
+            "feeGlm": "0.00050192000100384"
+          },
+          {
+            "label": "extend",
+            "txHash": "0x39db6c263264fbf366604307878a4bb07f38997f7e36485fe50ef40fc4cdb461",
+            "gasUsed": "25210",
+            "feeGlm": "0.00002521000005042"
+          },
+          {
+            "label": "patch (set 2, unset 1)",
+            "txHash": "0x99316aad3b7f6ea7ef2f92de1711b1b0480dd4f217a61d43d31e76a30f9db65e",
+            "gasUsed": "55320",
+            "feeGlm": "0.00005532000011064"
+          },
+          {
+            "label": "create (readonly + permissionlessExtension)",
+            "txHash": "0x9040fc1e58405ddb1302c29c510536dda15dc9268565d37260e214e246cd276a",
+            "gasUsed": "95496",
+            "feeGlm": "0.000095496000190992"
+          },
+          {
+            "label": "extend by a non-owner",
+            "txHash": "0x759ba4a47f5596628cca999c812517e4109cd79fd84d59e50c001a03f23d93b1",
+            "gasUsed": "25210",
+            "feeGlm": "0.00002521000005042"
+          },
+          {
+            "label": "extend readonly entity by owner",
+            "txHash": "0xafca8b035af06ae6c147a3ba25f9b0a3a9d7c122b0ed4258d24557f0d3d112b8",
+            "gasUsed": "25210",
+            "feeGlm": "0.00002521000005042"
+          },
+          {
+            "label": "batch: patch + extend (heartbeat)",
+            "txHash": "0xac8c4b2ee90450fc61a1f525264c21a8017aa1d3e3eae42346f2ea9bcc478672",
+            "gasUsed": "55128",
+            "feeGlm": "0.000055128000110256"
+          },
+          {
+            "label": "batch: 2 creates linked by a predicted key",
+            "txHash": "0x39ae85436fed31e927e14ae6bf77bbcf8326f171cbcd1684809da67a01b7e670",
+            "gasUsed": "196168",
+            "feeGlm": "0.000196168000392336"
+          },
+          {
+            "label": "create (2 attributes, empty payload)",
+            "txHash": "0x7cd3303269ba0ee128435ee3422e45deb6837c885e866dd2ffb1df3daaa4bb64",
+            "gasUsed": "95384",
+            "feeGlm": "0.000095384000190768"
+          },
+          {
+            "label": "changeOwnership",
+            "txHash": "0x379961cd6362f58a675deab92835a5810f317ef6bc32e77298a35ebe8444dc8c",
+            "gasUsed": "25430",
+            "feeGlm": "0.00002543000005086"
+          },
+          {
+            "label": "patch by the new owner",
+            "txHash": "0xb91ff99800cd469c249b040d80696ad3ec294bed2a623dd88d69651ae4517424",
+            "gasUsed": "45144",
+            "feeGlm": "0.000045144000090288"
+          },
+          {
+            "label": "create with 1024 B random payload",
+            "txHash": "0x4c7771ffdb0c00ed1408fc7d2350c5be1a4b90cc0093ef709e86f1a22879cac4",
+            "gasUsed": "116768",
+            "feeGlm": "0.000116768000233536"
+          },
+          {
+            "label": "create with 32768 B random payload",
+            "txHash": "0xcdd7539e068a056ce4773cf5c0e5c78a261c9ce696e98dacb6ecf1cec694445d",
+            "gasUsed": "1347750",
+            "feeGlm": "0.0013477500026955"
+          },
+          {
+            "label": "create with 122880 B random payload",
+            "txHash": "0x1331e0308caca0833ba9eff7b945b2e9a21b8a8fac8b49303f54d14c4c8fcddc",
+            "gasUsed": "4942360",
+            "feeGlm": "0.00494236000988472"
+          },
+          {
+            "label": "create, 1024 B payload, lifetime 1 hour",
+            "txHash": "0x99ca3bb915fc8a501b922c1ed4b5a47ae63ec16f53df022a2cbfd6f07a1e0ce7",
+            "gasUsed": "116768",
+            "feeGlm": "0.000116768000233536"
+          },
+          {
+            "label": "create, 1024 B payload, lifetime 180 days",
+            "txHash": "0x7909ddc79b57f2995ace1668e07f58fb74abd404962eb495985352482d58c500",
+            "gasUsed": "116768",
+            "feeGlm": "0.000116768000233536"
+          },
+          {
+            "label": "create, 1024 B payload, lifetime 100 years",
+            "txHash": "0xe2a64c5485ea5ef2facb1ded2a1834a6cc5a527b0c2c08f9c0518ecaf8692bdd",
+            "gasUsed": "116768",
+            "feeGlm": "0.000116768000233536"
+          },
+          {
+            "label": "create, 1024 B payload, lifetime permanent",
+            "txHash": "0x9575277808eecfc1973907bb2128e3793c070daf3bada41bb691742b99b68450",
+            "gasUsed": "116768",
+            "feeGlm": "0.000116768000233536"
+          },
+          {
+            "label": "create with 30 attributes",
+            "txHash": "0x8fa1b9b8a386f36bd3b9abceacb1da83253e04b1b91506b0f61e2a74095834f0",
+            "gasUsed": "230496",
+            "feeGlm": "0.000230496000460992"
+          },
+          {
+            "label": "create, lifetime 3 blocks",
+            "txHash": "0xfed0ef630622d65f94ac1e7c95111fa708299ce7a4ab763001ad41511a4cb828",
+            "gasUsed": "95560",
+            "feeGlm": "0.00009556000019112"
+          }
+        ]
+      }
+    }
+  ]
+}

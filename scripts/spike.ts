@@ -27,21 +27,43 @@ import {
   u64,
 } from "@arkiv-network/sdk/attr"
 import { tiramisu } from "@arkiv-network/sdk/chains"
-import { eq, exists, gt, lt, not, or, startsWith } from "@arkiv-network/sdk/query"
+import { eq, exists, gt, hasType, lt, ne, not, or, startsWith } from "@arkiv-network/sdk/query"
 import { formatEther, type Hex, http, keccak256, toHex, webSocket } from "viem"
 import { getGasPrice } from "viem/actions"
 import { accountFromEnv, rpcUrl, wsUrl } from "./env"
 
-const pub = createPublicClient({ chain: tiramisu, transport: http(rpcUrl) })
+// The public RPC meters anonymous traffic: a request limit and a cost budget for arkiv_query.
+// Reads fail fast instead of retrying into the limit, and the headers are tallied for the report.
+const quota = { arkivQueries: 0, arkivCost: 0, http429: 0, lowestRemaining: {} as Record<string, number> }
+const transport = (retryCount: number) =>
+  http(rpcUrl, {
+    retryCount,
+    onFetchResponse(response) {
+      const queryCost = Number(response.headers.get("arkiv-cost") ?? 0)
+      if (queryCost > 0) {
+        quota.arkivQueries++
+        quota.arkivCost += queryCost
+      }
+      if (response.status === 429) quota.http429++
+      const [, limit, remaining] =
+        /limit=(\d+), remaining=(\d+)/.exec(response.headers.get("ratelimit") ?? "") ?? []
+      if (limit !== undefined && remaining !== undefined) {
+        const label = `limit=${limit}`
+        quota.lowestRemaining[label] = Math.min(quota.lowestRemaining[label] ?? Infinity, Number(remaining))
+      }
+    },
+  })
+
+const pub = createPublicClient({ chain: tiramisu, transport: transport(0) })
 const requester = createWalletClient({
   chain: tiramisu,
-  transport: http(rpcUrl),
+  transport: transport(3),
   account: accountFromEnv("REQUESTER_PRIVATE_KEY"),
   pollingInterval: 1_000,
 })
 const verifier = createWalletClient({
   chain: tiramisu,
-  transport: http(rpcUrl),
+  transport: transport(3),
   account: accountFromEnv("VERIFIER_A_PRIVATE_KEY"),
   pollingInterval: 1_000,
 })
@@ -91,6 +113,21 @@ async function failureOf(fn: () => Promise<unknown>): Promise<string> {
     return messageOf(error)
   }
   throw new Error("expected the call to fail, but it succeeded")
+}
+
+/** Records what a call did without failing the step: the limits the node enforces are findings. */
+async function outcomeOf(fn: () => Promise<unknown>): Promise<string> {
+  try {
+    await fn()
+    return "accepted"
+  } catch (error) {
+    let cause = error as { name?: string; status?: number; cause?: unknown } | undefined
+    for (let depth = 0; cause !== undefined && depth < 8; depth++) {
+      if (cause.name === "HttpRequestError") return `rejected (HTTP ${cause.status}): ${messageOf(error)}`
+      cause = cause.cause as typeof cause
+    }
+    return `rejected: ${messageOf(error)}`
+  }
 }
 
 async function cost(label: string, txHash: Hex) {
@@ -145,18 +182,18 @@ await step("1", "createEntity with typed attributes", async () => {
     attributes: {
       ...base,
       type: "arkify.spike",
-      chainId: u64(SAMPLE_CHAIN),
+      chain_id: u64(SAMPLE_CHAIN),
       address: addr(SAMPLE_ADDRESS),
-      codeHash: bytes32(SAMPLE_CODE_HASH),
+      code_hash: bytes32(SAMPLE_CODE_HASH),
       verdict: "full_match",
-      verifiedAt: u64(mainVerifiedAt),
+      verified_at: u64(mainVerifiedAt),
       score: i32(-5),
       live: true,
     },
     expires: hours(1),
   })
   mainKey = created.entityKey
-  return { ...created, ...(await cost("create (11 attributes, 46 B payload)", created.txHash)) }
+  return { ...created, ...(await cost("create (10 attributes, 46 B payload)", created.txHash)) }
 })
 
 await step("2", "getEntity reads back every field", async () => {
@@ -180,15 +217,17 @@ await step("2", "getEntity reads back every field", async () => {
 
 await step("3", "compound query, createdBy, ranges, trusted-creator OR", async () => {
   const scoped = [eq("run", run), eq("type", "arkify.spike")]
+  const runFilter = eq("run", run).toString()
+  const select = { select: { key: true } } as const
   const compound = pub
     .select({ key: true, creator: true })
     .where(
       ...scoped,
-      eq("chainId", u64(SAMPLE_CHAIN)),
+      eq("chain_id", u64(SAMPLE_CHAIN)),
       eq("address", addr(SAMPLE_ADDRESS)),
-      eq("codeHash", bytes32(SAMPLE_CODE_HASH)),
-      gt("verifiedAt", u64(mainVerifiedAt - 60n)),
-      lt("verifiedAt", u64(mainVerifiedAt + 60n)),
+      eq("code_hash", bytes32(SAMPLE_CODE_HASH)),
+      gt("verified_at", u64(mainVerifiedAt - 60n)),
+      lt("verified_at", u64(mainVerifiedAt + 60n)),
     )
     .createdBy(A)
   const compoundText = compound.toString()
@@ -220,18 +259,30 @@ await step("3", "compound query, createdBy, ranges, trusted-creator OR", async (
     .select({ key: true })
     .where(
       ...scoped,
-      exists("score"),
       lt("score", i32(0)),
       not(eq("verdict", "mismatch")),
       startsWith("verdict", "full"),
     )
     .fetch()
-  check(misc.entities.length === 1, "exists / negative i32 range / not / startsWith")
+  check(misc.entities.length === 1, "negative i32 range / not / startsWith")
+
+  // Operators the SDK exports. What the node makes of each is recorded, not assumed.
+  const nodeVerdict = (expression: { toString(): string }) =>
+    pub
+      .query(`${runFilter} AND ${expression.toString()}`, select)
+      .then((result) => `accepted, ${result.entities.length} result(s)`)
+      .catch((error: unknown) => {
+        const data = (error as { data?: { message?: string } }).data
+        return `rejected by the node: ${data?.message ?? messageOf(error)}`
+      })
+  const exportedOperators = {
+    exists: await nodeVerdict(exists("score")),
+    ne: await nodeVerdict(ne("verdict", "mismatch")),
+    hasType: await nodeVerdict(hasType("score", "i32")),
+  }
 
   // The builder refuses $createdAt; the node accepts it in a raw query string.
   const createdAtBuilder = await failureOf(async () => gt("$createdAt", u64(0n)))
-  const runFilter = eq("run", run).toString()
-  const select = { select: { key: true } } as const
   const [createdUpToNow, createdInFuture] = await Promise.all([
     pub.query(`${runFilter} AND $createdAt <= u64(${block})`, select),
     pub.query(`${runFilter} AND $createdAt > u64(${block + 100_000n})`, select),
@@ -251,6 +302,7 @@ await step("3", "compound query, createdBy, ranges, trusted-creator OR", async (
     createdAtViaBuilder: createdAtBuilder,
     createdAtViaRawQuery: "accepted and applied",
     untypedLiteral,
+    exportedOperators,
   }
 })
 
@@ -372,7 +424,7 @@ await step("7", "readonly + permissionlessExtension flags", async () => {
 
 await step("8", "executeBatch: heartbeat, predicted keys, atomic revert", async () => {
   const beat = await requester.executeBatch({
-    patches: [{ entityKey: mainKey, set: { lastBeat: u64(BigInt(Math.floor(Date.now() / 1000))) } }],
+    patches: [{ entityKey: mainKey, set: { last_beat: u64(BigInt(Math.floor(Date.now() / 1000))) } }],
     extensions: [{ entityKey: mainKey, expires: hours(4) }],
   })
 
@@ -390,7 +442,7 @@ await step("8", "executeBatch: heartbeat, predicted keys, atomic revert", async 
       {
         payload: jsonToPayload({ verdict: "full_match" }),
         contentType: "application/json",
-        attributes: { ...base, kind: "attestation", sourceKey: key(source.key) },
+        attributes: { ...base, kind: "attestation", source_key: key(source.key) },
         expires: hours(1),
       },
     ],
@@ -398,7 +450,7 @@ await step("8", "executeBatch: heartbeat, predicted keys, atomic revert", async 
   check(linked.createdEntities[0] === source.key, "predicted key matches the minted key")
   const bySource = await pub
     .select({ key: true })
-    .where(eq("run", run), eq("sourceKey", key(source.key)))
+    .where(eq("run", run), eq("source_key", key(source.key)))
     .fetch()
   check(bySource.entities[0]?.key === linked.createdEntities[1], "key attribute is queryable")
 
@@ -503,16 +555,18 @@ await step("10", "changeOwnership moves $owner, never $creator", async () => {
   }
 })
 
-await step("M1", "payload size up to the SDK limit", async () => {
-  const sizes: Detail = {}
-  for (const size of [1024, 32 * 1024, MAX_PAYLOAD_BYTES]) {
-    const payload = new Uint8Array(randomBytes(size))
-    const created = await requester.createEntity({
+await step("M1", "payload size: what the SDK allows and what the RPC accepts", async () => {
+  const createWith = (payload: Uint8Array) =>
+    requester.createEntity({
       payload,
       contentType: "application/octet-stream",
-      attributes: { ...base, kind: "payload", size: i32(size) },
+      attributes: { ...base, kind: "payload", size: i32(payload.length) },
       expires: hours(1),
     })
+  const sizes: Detail = {}
+  for (const size of [1024, 32 * 1024, 120 * 1024]) {
+    const payload = new Uint8Array(randomBytes(size))
+    const created = await createWith(payload)
     const readStarted = Date.now()
     const entity = await pub.getEntity(created.entityKey)
     check(keccak256(entity.payload) === keccak256(payload), `${size} B payload reads back intact`)
@@ -521,15 +575,12 @@ await step("M1", "payload size up to the SDK limit", async () => {
       readMs: Date.now() - readStarted,
     }
   }
-  const overLimit = await failureOf(() =>
-    requester.createEntity({
-      payload: new Uint8Array(MAX_PAYLOAD_BYTES + 1),
-      contentType: "application/octet-stream",
-      attributes: { ...base, kind: "payload" },
-      expires: hours(1),
-    }),
-  )
-  return { MAX_PAYLOAD_BYTES, sizes, overLimit }
+  return {
+    MAX_PAYLOAD_BYTES,
+    sizes,
+    atSdkLimit: await outcomeOf(() => createWith(new Uint8Array(randomBytes(MAX_PAYLOAD_BYTES)))),
+    overSdkLimit: await failureOf(() => createWith(new Uint8Array(MAX_PAYLOAD_BYTES + 1))),
+  }
 })
 
 await step("M2", "lifetime does or does not change the fee", async () => {
@@ -595,6 +646,14 @@ await step("M3", "attribute count, name length and string length limits", async 
     nameTooLong: await create({ ...base, [`${longName}n`]: "x" }),
     valueTooLong: await create({ ...base, long: `${longValue}v` }),
     reservedName: await create({ ...base, key: "x" }),
+    upperCaseName: await outcomeOf(() =>
+      requester.createEntity({
+        payload: jsonToPayload({ limits: true }),
+        contentType: "application/json",
+        attributes: { ...base, chainId: "x" },
+        expires: hours(1),
+      }),
+    ),
   }
 })
 
@@ -636,7 +695,7 @@ await step("M4", "an expired entity disappears, its creation tx does not", async
   }
 })
 
-await step("M5", "cost summary", async () => {
+await step("M5", "cost and RPC quota summary", async () => {
   const [balanceA, balanceB, gasPrice] = await Promise.all([
     pub.getBalance({ address: A }),
     pub.getBalance({ address: B }),
@@ -646,6 +705,7 @@ await step("M5", "cost summary", async () => {
     gasPriceWei: gasPrice,
     requesterBalanceGlm: formatEther(balanceA),
     verifierBalanceGlm: formatEther(balanceB),
+    rpcQuota: quota,
     costs,
   }
 })
