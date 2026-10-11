@@ -18,6 +18,9 @@ importers:
         specifier: ^2.57.4
         version: 2.57.4(typescript@5.9.3)
     devDependencies:
+      '@arkify/core':
+        specifier: workspace:*
+        version: link:packages/core
       '@types/node':
         specifier: ^26.6.4
         version: 26.6.4
@@ -30,6 +33,15 @@ importers:
       vitest:
         specifier: ^5.0.3
         version: 5.0.3(@types/node@26.6.4)(vite@8.3.3(@types/node@26.6.4)(esbuild@0.28.2)(tsx@4.23.15))
+
+  packages/core:
+    dependencies:
+      '@arkiv-network/sdk':
+        specifier: 0.8.1
+        version: 0.8.1(typescript@5.9.3)(viem@2.57.4(typescript@5.9.3))
+      viem:
+        specifier: ^2.57.4
+        version: 2.57.4(typescript@5.9.3)
 
 packages:
 
