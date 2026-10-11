@@ -91,7 +91,7 @@ export type AttestationDetails = {
   engine: string
   engineVersion: string
   durationMs: number
-  /** keccak256 of the bytecode the verifier compiled, after normalisation. */
+  /** keccak256 of the runtime bytecode the verifier compiled, unlinked library slots zeroed. */
   compiledCodeHash?: Hex
   /** Why the verdict is what it is, for `mismatch` and `error`. */
   message?: string

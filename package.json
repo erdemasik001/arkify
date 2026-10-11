@@ -8,9 +8,11 @@
     "fund": "tsx scripts/fund.ts",
     "spike": "tsx scripts/spike.ts",
     "smoke": "tsx scripts/smoke-core.ts",
+    "verify": "tsx scripts/verify.ts",
     "measure-sources": "tsx scripts/measure-sources.ts",
     "typecheck": "tsc --noEmit -p .",
-    "test": "vitest run"
+    "test": "vitest run --exclude '**/*.network.test.ts'",
+    "test:network": "vitest run network.test"
   },
   "dependencies": {
     "@arkiv-network/sdk": "0.8.1",
@@ -19,6 +21,7 @@
   },
   "devDependencies": {
     "@arkify/core": "workspace:*",
+    "@arkify/engine": "workspace:*",
     "@types/node": "^26.6.4",
     "tsx": "^4.23.15",
     "typescript": "~5.9.3",
