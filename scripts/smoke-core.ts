@@ -5,6 +5,7 @@
 //   pnpm smoke
 import { brotliCompressSync, brotliDecompressSync } from "node:zlib"
 import {
+  arkivHttp,
   attestationDraft,
   attestationsOfSource,
   attestationsVerifiedSince,
@@ -45,7 +46,7 @@ const brotli: Compression = {
   decompress: (bytes, maxBytes) => brotliDecompressSync(bytes, { maxOutputLength: maxBytes }),
 }
 
-const pub = createPublicClient({ chain: tiramisu, transport: http(rpcUrl, { retryCount: 0 }) })
+const pub = createPublicClient({ chain: tiramisu, transport: arkivHttp(rpcUrl) })
 const wallet = (name: string) =>
   createWalletClient({
     chain: tiramisu,

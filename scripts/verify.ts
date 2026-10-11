@@ -2,7 +2,8 @@
 // Sourcify, compiles it and compares it with the code on chain.
 //
 //   pnpm verify 11155111 0xcA11bde05977b3631167028862bE2a173976CA11
-import { fetchSourcifyBundle, rpcCodeReader, verify } from "@arkify/engine"
+import { fetchSourcifyBundle } from "@arkify/core"
+import { rpcCodeReader, verify } from "@arkify/engine"
 import { getAddress } from "viem"
 import "./env"
 

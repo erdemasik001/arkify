@@ -6,6 +6,7 @@
 // Without flags it reads VERIFIER_NAME and VERIFIER_PRIVATE_KEY, which is how a deployed instance
 // is configured. The key is only ever read from the environment.
 import { parseArgs } from "node:util"
+import { budgetErrorOf } from "@arkify/core"
 import { tiramisu } from "@arkiv-network/sdk/chains"
 import { config } from "dotenv"
 import type { Hex } from "viem"
@@ -28,14 +29,30 @@ if (key === undefined || !/^0x[0-9a-fA-F]{64}$/.test(key)) {
   process.exit(2)
 }
 
-const verifier = await startVerifier({
-  account: privateKeyToAccount(key as Hex),
-  name: values.name ?? process.env.VERIFIER_NAME ?? "verifier",
-  rpcUrl: process.env.ARKIV_RPC_URL ?? tiramisu.rpcUrls.default.http[0],
-  wsUrl: process.env.ARKIV_WS_URL ?? tiramisu.rpcUrls.default.webSocket[0],
-  evil: values.evil,
-  verifyTimeoutSeconds: Number(process.env.ARKIFY_VERIFY_TIMEOUT_SECONDS ?? 180),
-})
+const name = values.name ?? process.env.VERIFIER_NAME ?? "verifier"
+const start = () =>
+  startVerifier({
+    account: privateKeyToAccount(key as Hex),
+    name,
+    rpcUrl: process.env.ARKIV_RPC_URL ?? tiramisu.rpcUrls.default.http[0],
+    wsUrl: process.env.ARKIV_WS_URL ?? tiramisu.rpcUrls.default.webSocket[0],
+    evil: values.evil,
+    verifyTimeoutSeconds: Number(process.env.ARKIFY_VERIFY_TIMEOUT_SECONDS ?? 180),
+  })
+
+// Start-up reads Arkiv. If the RPC has paused this address's reads, wait for it rather than exit.
+let verifier: Awaited<ReturnType<typeof start>>
+for (;;) {
+  try {
+    verifier = await start()
+    break
+  } catch (error) {
+    const budget = budgetErrorOf(error)
+    if (budget === undefined) throw error
+    console.log(`[${name}] reads paused by the RPC; starting in ${budget.retryAfterSeconds} s`)
+    await new Promise((resolve) => setTimeout(resolve, (budget.retryAfterSeconds + 5) * 1000))
+  }
+}
 
 for (const signal of ["SIGINT", "SIGTERM"] as const) {
   process.once(signal, () => {

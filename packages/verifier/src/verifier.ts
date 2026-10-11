@@ -4,9 +4,11 @@
 // Nothing is kept on disk. After a restart the work queue is rebuilt from the requests still alive
 // on Arkiv and the attestations this wallet has already written.
 import {
+  arkivHttp,
   attestationDraft,
   attestationsOfSource,
   attestationsVerifiedSince,
+  budgetErrorOf,
   contractNameOf,
   decodeAll,
   decodeAttestation,
@@ -31,6 +33,7 @@ import {
   Verdict,
   verifierDraft,
   verifiers,
+  watchLive,
 } from "@arkify/core"
 import {
   ENGINE,
@@ -42,7 +45,7 @@ import {
 } from "@arkify/engine"
 import { createPublicClient, createWalletClient, NoEntityFoundError } from "@arkiv-network/sdk"
 import { tiramisu } from "@arkiv-network/sdk/chains"
-import { type Address, type Hex, http, keccak256, type PrivateKeyAccount, webSocket } from "viem"
+import { type Address, type Hex, http, keccak256, type PrivateKeyAccount } from "viem"
 import { IsolatedEngine, VerificationAbortedError } from "./isolatedEngine"
 import { RateLimiter } from "./rateLimiter"
 
@@ -71,8 +74,6 @@ export type RunningVerifier = {
 const REQUESTS_PER_CREATOR_PER_HOUR = 30
 const MAX_ATTEMPTS = 3
 const DAY_SECONDS = 24n * 60n * 60n
-/** Tiramisu sees a create every second or two, so a minute of silence means a dead socket. */
-const QUIET_MS = 60_000
 
 const now = () => BigInt(Math.floor(Date.now() / 1000))
 const short = (hex: string) => `${hex.slice(0, 10)}…`
@@ -89,7 +90,7 @@ export async function startVerifier(options: VerifierOptions): Promise<RunningVe
   const engine = new IsolatedEngine((options.verifyTimeoutSeconds ?? 180) * 1000)
   const heartbeatMs = (options.heartbeatSeconds ?? HEARTBEAT_SECONDS) * 1000
 
-  const pub = createPublicClient({ chain: tiramisu, transport: http(options.rpcUrl, { retryCount: 1 }) })
+  const pub = createPublicClient({ chain: tiramisu, transport: arkivHttp(options.rpcUrl) })
   const wallet = createWalletClient({
     chain: tiramisu,
     transport: http(options.rpcUrl),
@@ -116,7 +117,7 @@ export async function startVerifier(options: VerifierOptions): Promise<RunningVe
     })
 
   async function register(): Promise<Hex> {
-    const mine = decodeAll(await readAll(pub, verifiers(), self), decodeVerifier)
+    const mine = decodeAll(await readAll(pub, verifiers(), { creator: self }), decodeVerifier)
     const existing = mine.find((record) => record.owner === self)
     if (existing === undefined) {
       const created = await write(() => wallet.createEntity(registrationOf()))
@@ -170,11 +171,29 @@ export async function startVerifier(options: VerifierOptions): Promise<RunningVe
     })
   }
 
+  // When the RPC has paused this address's reads, work waits instead of failing over and over.
+  let pausedUntil = 0
+  function pauseFor(error: unknown): boolean {
+    const budget = budgetErrorOf(error)
+    if (budget === undefined) return false
+    pausedUntil = Date.now() + budget.retryAfterSeconds * 1000
+    log(`reads paused by the RPC for ${budget.retryAfterSeconds} s (anonymous query budget used up)`)
+    return true
+  }
+  const waitOutPause = async () => {
+    while (!stopped && Date.now() < pausedUntil) await new Promise((resolve) => setTimeout(resolve, 5_000))
+  }
+
   async function drain(): Promise<void> {
     for (let request = queue.shift(); request !== undefined && !stopped; request = queue.shift()) {
+      await waitOutPause()
       try {
         await handle(request)
       } catch (error) {
+        if (pauseFor(error)) {
+          queue.unshift(request)
+          continue
+        }
         // Most likely the chain or Arkiv was unreachable. The next scan offers the request again.
         const tried = (attempts.get(request.key) ?? 0) + 1
         attempts.set(request.key, tried)
@@ -241,7 +260,7 @@ export async function startVerifier(options: VerifierOptions): Promise<RunningVe
 
     // Asked again about code and a source this wallet has already judged the same way: the answer
     // on Arkiv is still right, so its life is extended rather than a duplicate written.
-    const mine = decodeAll(await readAll(pub, attestationsOfSource(pair), self), decodeAttestation)
+    const mine = decodeAll(await readAll(pub, attestationsOfSource(pair), { creator: self }), decodeAttestation)
     const latest = mine.sort((a, b) => Number(b.verifiedAt - a.verifiedAt))[0]
     if (latest !== undefined && latest.verdict === verdict) {
       await write(() => wallet.extendEntity({ entityKey: latest.key, expires: lifetime }))
@@ -258,7 +277,7 @@ export async function startVerifier(options: VerifierOptions): Promise<RunningVe
 
     // A source that matched is worth keeping, and its submitter could delete their copy. So this
     // verifier holds its own, and points its attestation at that.
-    const copies = decodeAll(await readAll(pub, sourcesWithHash(request.sourceHash), self), decodeSource)
+    const copies = decodeAll(await readAll(pub, sourcesWithHash(request.sourceHash), { creator: self }), decodeSource)
     const copy = copies.find((record) => record.owner === self)
     if (copy !== undefined) {
       await write(() =>
@@ -296,6 +315,7 @@ export async function startVerifier(options: VerifierOptions): Promise<RunningVe
    */
   let scannedTo: bigint | undefined
   async function scan(): Promise<void> {
+    if (Date.now() < pausedUntil) return
     const text = scannedTo === undefined ? requests().toString() : requestsCreatedAfter(scannedTo)
     let page = await pub.query(text, { select: RECORD_SELECTION, limit: 200 })
     const head = page.blockNumber
@@ -309,73 +329,31 @@ export async function startVerifier(options: VerifierOptions): Promise<RunningVe
     scannedTo = head
   }
 
+  const reportScanFailure = (error: unknown) => {
+    if (!pauseFor(error)) log(`scan failed: ${messageOf(error)}`)
+  }
+
   // What this wallet answered in the last day, so start-up does not redo it.
-  const recent = await readAll(pub, attestationsVerifiedSince(now() - DAY_SECONDS - 3_600n), self)
+  const recent = await readAll(pub, attestationsVerifiedSince(now() - DAY_SECONDS - 3_600n), { creator: self })
   for (const attestation of decodeAll(recent, decodeAttestation)) {
     answered.add(pairKey(attestation, attestation.sourceHash))
   }
 
   // Live path: a WebSocket subscription, no polling. Events carry no attributes, so only creates
-  // shaped like a request are read back.
-  //
-  // The public endpoint caps concurrent WebSocket connections and refuses the handshake beyond it,
-  // after which the SDK's watcher stays silent for good (arkiv/friction.md, F-015). So this owns
-  // the connection: on an error, or when a chain that is never quiet goes quiet, it is rebuilt.
-  let subscription: { close(): void } | undefined
-  let reconnecting: ReturnType<typeof setTimeout> | undefined
-  let failures = 0
-  let lastEventAt = Date.now()
-
-  function subscribe(): void {
-    const live = createPublicClient({
-      chain: tiramisu,
-      transport: webSocket(options.wsUrl, { keepAlive: true, reconnect: false }),
-    })
-    const unwatch = live.watchEntityEvents({
-      onEvent: () => {
-        lastEventAt = Date.now()
-        failures = 0
-      },
-      onEntityCreated: (event) => {
-        if (!mayBe(EntityType.Request, event)) return
-        void readRequest(event.entityKey).then(
-          (request) => request !== undefined && enqueue(request),
-          (error) => log(`could not read ${short(event.entityKey)}: ${messageOf(error)}`),
-        )
-      },
-      onError: (error) => resubscribe(`subscription error: ${error.message}`),
-    })
-    lastEventAt = Date.now()
-    subscription = {
-      close() {
-        unwatch()
-        void live.transport
-          .getRpcClient()
-          .then((socket) => socket.close())
-          .catch(() => undefined)
-      },
-    }
-  }
-
-  function resubscribe(reason: string): void {
-    if (stopped || reconnecting !== undefined) return
-    subscription?.close()
-    subscription = undefined
-    const delay = Math.min(30_000, 1_000 * 2 ** failures) + Math.random() * 1_000
-    failures++
-    log(`${reason}; reconnecting in ${Math.round(delay / 1000)} s`)
-    reconnecting = setTimeout(() => {
-      reconnecting = undefined
-      subscribe()
-      // Whatever was created while the connection was down is picked up by a scan.
-      void scan().catch((error) => log(`scan failed: ${messageOf(error)}`))
-    }, delay)
-  }
-
-  subscribe()
-  const watchdog = setInterval(() => {
-    if (Date.now() - lastEventAt > QUIET_MS) resubscribe("no events for a minute")
-  }, QUIET_MS / 4)
+  // shaped like a request are read back. `watchLive` keeps the connection alive, and whatever was
+  // created while it was down is picked up by a scan.
+  const stopWatching = watchLive({
+    wsUrl: options.wsUrl,
+    onCreated: (event) => {
+      if (!mayBe(EntityType.Request, event)) return
+      void readRequest(event.entityKey).then(
+        (request) => request !== undefined && enqueue(request),
+        (error) => pauseFor(error) || log(`could not read ${short(event.entityKey)}: ${messageOf(error)}`),
+      )
+    },
+    onReconnect: () => void scan().catch(reportScanFailure),
+    onStatus: (status, detail) => status === "reconnecting" && log(`subscription lost (${detail})`),
+  })
 
   async function readRequest(entityKey: Hex, retry = true): Promise<RequestRecord | undefined> {
     try {
@@ -389,9 +367,7 @@ export async function startVerifier(options: VerifierOptions): Promise<RunningVe
 
   await scan()
   const timer = setInterval(() => {
-    void beat()
-      .then(scan)
-      .catch((error) => log(`scan failed: ${messageOf(error)}`))
+    void beat().then(scan).catch(reportScanFailure)
   }, heartbeatMs)
   log(`ready as ${self}${evil ? " (EVIL demo mode)" : ""}`)
 
@@ -403,9 +379,7 @@ export async function startVerifier(options: VerifierOptions): Promise<RunningVe
     async stop() {
       stopped = true
       clearInterval(timer)
-      clearInterval(watchdog)
-      clearTimeout(reconnecting)
-      subscription?.close()
+      stopWatching()
       await draining?.catch(() => undefined)
       await lastWrite
       await engine.close()

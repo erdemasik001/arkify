@@ -1,5 +1,7 @@
 // End-to-end run on Tiramisu and Sepolia: three honest verifiers and one dishonest one, a real
-// contract (Multicall3 on Sepolia), its true source and a tampered copy.
+// contract (the ENS registry on Sepolia), its true source and a tampered copy. The contract was
+// picked because its source carries no author names or e-mail addresses: sources are stored on
+// Arkiv byte for byte, so the demo only stores ones without personal data.
 //
 //   pnpm e2e
 //
@@ -7,11 +9,13 @@
 // dishonest verifier's claims, which is exactly the data the demo shows.
 import { type ChildProcess, spawn } from "node:child_process"
 import {
+  arkivHttp,
   computeVerdict,
   decodeAll,
   decodeSource,
   decodeVerifier,
   fetchAttestations,
+  fetchSourcifyBundle,
   packSource,
   readAll,
   type SourceBundle,
@@ -20,13 +24,15 @@ import {
   submitRequest,
   verifiers,
 } from "@arkify/core"
-import { fetchSourcifyBundle, nodeBrotli, rpcCodeReader } from "@arkify/engine"
+import { nodeBrotli, rpcCodeReader } from "@arkify/engine"
 import { createPublicClient, createWalletClient } from "@arkiv-network/sdk"
 import { tiramisu } from "@arkiv-network/sdk/chains"
 import { http, keccak256 } from "viem"
 import { accountFromEnv, rpcUrl } from "./env"
 
-const target = { chainId: 11155111n, address: "0xcA11bde05977b3631167028862bE2a173976CA11" } as const
+const target = { chainId: 11155111n, address: "0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e" } as const
+/** The one-token change the tampered copy makes: who is allowed to change a record. */
+const TAMPER = { from: "owner == msg.sender", to: "owner == tx.origin" }
 const INSTANCES = [
   { name: "verifier-a", keyEnv: "VERIFIER_A_PRIVATE_KEY", evil: false },
   { name: "verifier-b", keyEnv: "VERIFIER_B_PRIVATE_KEY", evil: false },
@@ -36,7 +42,7 @@ const INSTANCES = [
 const honest = INSTANCES.filter(({ evil }) => !evil).map(({ keyEnv }) => accountFromEnv(keyEnv).address)
 const evil = accountFromEnv("EVIL_PRIVATE_KEY").address
 
-const reader = createPublicClient({ chain: tiramisu, transport: http(rpcUrl, { retryCount: 1 }) })
+const reader = createPublicClient({ chain: tiramisu, transport: arkivHttp(rpcUrl) })
 const writer = createWalletClient({
   chain: tiramisu,
   transport: http(rpcUrl),
@@ -95,13 +101,14 @@ try {
   await waitForLines("verifiers to be ready", /ready as 0x/, INSTANCES.length, 120_000)
 
   const genuine = await fetchSourcifyBundle(target)
-  const [file, source] = Object.entries(genuine.input.sources)[0] ?? []
+  const [file, source] =
+    Object.entries(genuine.input.sources).find(([, { content }]) => content?.includes(TAMPER.from)) ?? []
   if (file === undefined || source?.content === undefined) throw new Error("no source to tamper with")
   const tampered: SourceBundle = {
     ...genuine,
     input: {
       ...genuine.input,
-      sources: { ...genuine.input.sources, [file]: { content: source.content.replace("block.number", "block.timestamp") } },
+      sources: { ...genuine.input.sources, [file]: { content: source.content.replace(TAMPER.from, TAMPER.to) } },
     },
   }
   const tamperedHash = (await packSource(tampered, nodeBrotli)).sourceHash
