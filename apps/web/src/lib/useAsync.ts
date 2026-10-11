@@ -1,4 +1,5 @@
 import { explainError } from "@arkify/core"
+import { forgetQueries } from "./arkiv"
 import { useCallback, useEffect, useRef, useState } from "react"
 
 export type AsyncState<T> = { data: T | undefined; error: string | undefined; loading: boolean; reload(): void }
@@ -19,6 +20,9 @@ export function useAsync<T>(load: () => Promise<T>, dependencies: readonly unkno
     )
   }, [...dependencies, nonce])
 
-  const reload = useCallback(() => setNonce((value) => value + 1), [])
+  const reload = useCallback(() => {
+    forgetQueries()
+    setNonce((value) => value + 1)
+  }, [])
   return { data: state.data, error: state.error, loading: state.loading, reload }
 }

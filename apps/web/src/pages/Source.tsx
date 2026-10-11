@@ -2,10 +2,10 @@ import { decodeAll, decodeSource, findSource, Lifetime, readAll, sourcesWithHash
 import { useState } from "react"
 import type { Hex } from "viem"
 import { KeepAlive } from "../components/KeepAlive"
-import { CodeBlock, CopyButton, ErrorNote, Loading, Mono, Section, Signer } from "../components/ui"
+import { Card, CodeBlock, CopyButton, ErrorNote, Icon, Loading, Signer } from "../components/ui"
 import { reader } from "../lib/arkiv"
 import { browserBrotli } from "../lib/brotli"
-import { expiresIn } from "../lib/format"
+import { expiresIn, shortHex } from "../lib/format"
 import { useRegistry } from "../lib/registry"
 import { useSettings } from "../lib/settings"
 import { useAsync } from "../lib/useAsync"
@@ -24,17 +24,21 @@ export function Source({ sourceHash, preferredKey }: { sourceHash: Hex; preferre
   const [selected, setSelected] = useState<string>()
 
   if (error !== undefined) return <ErrorNote message={error} retry={reload} />
-  if (data === undefined) return loading ? <Loading what="the source bundle" /> : null
+  if (data === undefined) return loading ? <div className="skeleton skeleton-block" aria-busy="true" aria-label="Loading" /> : null
   if (data.found === undefined) {
     return (
       <>
         <header className="page-head">
-          <p className="eyebrow">Source bundle</p>
+          <span className="eyebrow">Source bundle</span>
           <h1 className="mono wrap">{sourceHash}</h1>
         </header>
-        <div className="note note-bad">
-          No copy of this source on Arkiv decompresses to content with this hash. {data.copies.length} entity
-          {data.copies.length === 1 ? " claims" : "ies claim"} the hash; none passed the check, or all have expired.
+        <div className="note tone-bad">
+          <Icon name="alert" />
+          <div>
+            No copy of this source on Arkiv decompresses to content with this hash. {data.copies.length}{" "}
+            {data.copies.length === 1 ? "entity claims" : "entities claim"} the hash; none passed the check, or all have
+            expired.
+          </div>
         </div>
       </>
     )
@@ -42,30 +46,40 @@ export function Source({ sourceHash, preferredKey }: { sourceHash: Hex; preferre
 
   const { bundle } = data.found
   const files = Object.keys(bundle.input.sources)
-  const file = selected ?? bundle.contract.slice(0, bundle.contract.lastIndexOf(":"))
-  const current = files.includes(file) ? file : files[0]
+  const main = bundle.contract.slice(0, bundle.contract.lastIndexOf(":"))
+  const current = selected ?? (files.includes(main) ? main : files[0])
   const content = current === undefined ? "" : (bundle.input.sources[current]?.content ?? "")
   const trusted = new Set(settings.trusted.map((address) => address.toLowerCase()))
 
   return (
     <>
       <header className="page-head">
-        <p className="eyebrow">Source bundle</p>
+        <span className="eyebrow">Source bundle</span>
         <h1>{bundle.contract.slice(bundle.contract.lastIndexOf(":") + 1)}</h1>
-        <p className="muted">
-          <span className="mono">{bundle.contract}</span> · solc {bundle.compilerVersion} · {files.length} file
-          {files.length === 1 ? "" : "s"}
-        </p>
+        <div className="meta-row">
+          <span className="meta">
+            solc <b>{bundle.compilerVersion}</b>
+          </span>
+          <span className="meta">
+            <b>{files.length}</b> file{files.length === 1 ? "" : "s"}
+          </span>
+          <span className="meta">
+            Hash <b className="mono">{shortHex(sourceHash)}</b>
+            <CopyButton text={sourceHash} />
+          </span>
+        </div>
       </header>
 
-      <div className="note note-good">
-        <strong>Content checked in your browser.</strong> This page decompressed the payload and hashed it: keccak256 is{" "}
-        <Mono value={sourceHash} /> <CopyButton text={sourceHash} />, the hash attestations refer to. A copy with any other
-        content would have been rejected.
+      <div className="note tone-good">
+        <Icon name="shieldCheck" />
+        <div>
+          <strong>Content checked in your browser.</strong> This page decompressed the payload and hashed it; the result is
+          the hash attestations refer to. A copy with any other content would have been rejected.
+        </div>
       </div>
 
-      <Section title="Files">
-        <div className="files">
+      <Card title="Files" icon="file">
+        <div className="viewer">
           <nav className="file-list" aria-label="Source files">
             {files.map((name) => (
               <button type="button" key={name} className={name === current ? "file active" : "file"} onClick={() => setSelected(name)}>
@@ -73,48 +87,42 @@ export function Source({ sourceHash, preferredKey }: { sourceHash: Hex; preferre
               </button>
             ))}
           </nav>
-          <pre className="file-view">{content}</pre>
+          <div className="code">
+            {content.split("\n").map((line, index) => (
+              <span key={index} className="code-line">
+                {line || " "}
+              </span>
+            ))}
+          </div>
         </div>
-      </Section>
+      </Card>
 
-      <Section title="Compiler settings">
+      <Card title="Compiler settings" icon="layers">
         <CodeBlock label="settings" text={JSON.stringify(bundle.input.settings ?? {}, null, 2)} />
-      </Section>
+      </Card>
 
-      <Section title="Who holds a copy">
+      <Card title="Who holds a copy" icon="users">
         <p className="muted">
-          A source is stored content-addressed and anyone may publish a copy. Each verifier that matched it keeps its own, so
+          A source is stored by content hash and anyone may publish a copy. Each verifier that matched it keeps its own, so
           the person who submitted it cannot take it down.
         </p>
-        <div className="table-wrap">
-          <table>
-            <thead>
-              <tr>
-                <th>Published by</th>
-                <th>Entity</th>
-                <th>Expires in</th>
-                <th />
-              </tr>
-            </thead>
-            <tbody>
-              {data.copies.map((copy) => (
-                <tr key={copy.key}>
-                  <td>
-                    <Signer address={copy.creator} registry={registry} trusted={trusted.has(copy.creator.toLowerCase())} />
-                  </td>
-                  <td>
-                    <Mono value={copy.key} />
-                  </td>
-                  <td>{expiresIn(copy.expiresAt, data.head)}</td>
-                  <td className="right">
-                    <KeepAlive entityKey={copy.key} lifetime={Lifetime.source} label="180 more days for this copy" onDone={reload} />
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
+        <div className="rows">
+          {data.copies.map((copy) => (
+            <div className="row" key={copy.key}>
+              <Signer address={copy.creator} registry={registry} trusted={trusted.has(copy.creator.toLowerCase())} />
+              <div className="row-mid">
+                <span className="meta">
+                  Entity <b className="mono">{shortHex(copy.key)}</b>
+                </span>
+              </div>
+              <div className="row-end">
+                <span>expires in {expiresIn(copy.expiresAt, data.head)}</span>
+                <KeepAlive entityKey={copy.key} lifetime={Lifetime.source} label="180 more days for this copy" onDone={reload} />
+              </div>
+            </div>
+          ))}
         </div>
-      </Section>
+      </Card>
     </>
   )
 }

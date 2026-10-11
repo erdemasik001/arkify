@@ -12,6 +12,8 @@
   "dependencies": {
     "@arkify/core": "workspace:*",
     "@arkiv-network/sdk": "0.8.1",
+    "@fontsource-variable/geist": "^5.3.0",
+    "@fontsource-variable/geist-mono": "^5.3.0",
     "brotli-wasm": "3.0.1",
     "react": "^19.3.0",
     "react-dom": "^19.3.0",

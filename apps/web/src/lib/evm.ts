@@ -15,6 +15,8 @@ export const CHAINS = {
 } as const
 
 export type ChainId = keyof typeof CHAINS
+/** The order chains are offered in: the testnet the demo data lives on first. */
+export const CHAIN_IDS: readonly ChainId[] = ["11155111", "1"]
 export const isChainId = (value: string): value is ChainId => value in CHAINS
 
 const clients = new Map<string, ReturnType<typeof createPublicClient>>()

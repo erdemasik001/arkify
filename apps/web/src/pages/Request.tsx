@@ -8,14 +8,23 @@ import {
   type SubmittedRequest,
   submitRequest,
 } from "@arkify/core"
-import { type ChangeEvent, useState, useSyncExternalStore } from "react"
+import { type ChangeEvent, type ReactNode, useState, useSyncExternalStore } from "react"
 import { getAddress, isAddress } from "viem"
-import { Account, Mono, Section } from "../components/ui"
+import { Account, Icon, Mono } from "../components/ui"
 import { ARKIV_EXPLORER, reader } from "../lib/arkiv"
 import { browserBrotli } from "../lib/brotli"
-import { CHAINS, type ChainId, isChainId } from "../lib/evm"
+import { CHAIN_IDS, CHAINS, type ChainId, isChainId } from "../lib/evm"
 import { currentWallet, ensureWallet, subscribeWallet } from "../lib/wallet"
 
+function Step({ number, title, children }: { number: number; title: string; children: ReactNode }) {
+  return (
+    <section className="step-card">
+      <span className="step-number">{number}</span>
+      <h2>{title}</h2>
+      <div className="step-body">{children}</div>
+    </section>
+  )
+}
 
 export function Request({ initialChain, initialAddress }: { initialChain: string | undefined; initialAddress: string | undefined }) {
   const [chain, setChain] = useState<ChainId>(initialChain !== undefined && isChainId(initialChain) ? initialChain : "11155111")
@@ -41,7 +50,8 @@ export function Request({ initialChain, initialAddress }: { initialChain: string
       setCompilerVersion(bundle.compilerVersion)
       setContract(bundle.contract)
       setInputText(JSON.stringify(bundle.input, null, 2))
-      setOrigin(`Imported from Sourcify: ${Object.keys(bundle.input.sources).length} file(s).`)
+      const count = Object.keys(bundle.input.sources).length
+      setOrigin(`Imported ${count} file${count === 1 ? "" : "s"} from Sourcify.`)
     } catch (error) {
       setProblem(explainError(error))
     } finally {
@@ -89,17 +99,18 @@ export function Request({ initialChain, initialAddress }: { initialChain: string
     return (
       <>
         <header className="page-head">
-          <p className="eyebrow">Request a verification</p>
-          <h1>Request written to Arkiv</h1>
+          <span className="eyebrow">Request a verification</span>
+          <h1>Your request is on Arkiv</h1>
+          <p className="lede">Verifiers that are online hear about it over their event subscription and usually answer within seconds.</p>
         </header>
-        <div className="note note-good">
-          Verifiers that are online hear about it over their event subscription and usually answer within seconds.{" "}
-          <a href={`#/contract/${chain}/${target.address}`}>Watch the answers arrive on the contract page.</a>
-        </div>
+        <a className="btn btn-primary" href={`#/contract/${chain}/${target.address}`}>
+          Watch the answers arrive
+          <Icon name="arrow" />
+        </a>
         <dl className="facts">
           <dt>Transaction</dt>
           <dd>
-            <a className="mono" href={`${ARKIV_EXPLORER}/tx/${done.txHash}`} target="_blank" rel="noreferrer">
+            <a className="mono link" href={`${ARKIV_EXPLORER}/tx/${done.txHash}`} target="_blank" rel="noreferrer">
               {done.txHash}
             </a>
           </dd>
@@ -109,10 +120,10 @@ export function Request({ initialChain, initialAddress }: { initialChain: string
           </dd>
           <dt>Source</dt>
           <dd>
-            <a className="mono" href={`#/source/${done.sourceHash}?key=${done.sourceKey}`}>
+            <a className="mono link" href={`#/source/${done.sourceHash}?key=${done.sourceKey}`}>
               {done.sourceHash}
             </a>{" "}
-            ({done.publishedSource ? "published in the same transaction" : "already on Arkiv, reused"})
+            <span className="faint">({done.publishedSource ? "published in the same transaction" : "already on Arkiv, reused"})</span>
           </dd>
         </dl>
       </>
@@ -123,78 +134,93 @@ export function Request({ initialChain, initialAddress }: { initialChain: string
   return (
     <>
       <header className="page-head">
-        <p className="eyebrow">Request a verification</p>
+        <span className="eyebrow">Request a verification</span>
         <h1>Ask the verifiers to check a source</h1>
-        <p className="muted">
-          You sign one Arkiv transaction that stores the source and the request together. It needs a little testnet GLM
-          from the{" "}
-          <a href="https://hub.arkiv.network/faucet" target="_blank" rel="noreferrer">
+        <p className="lede">
+          You sign one Arkiv transaction that stores the source and the request together. It needs a little testnet GLM from
+          the{" "}
+          <a className="link" href="https://hub.arkiv.network/faucet" target="_blank" rel="noreferrer">
             Arkiv faucet
           </a>
-          . Sources are public and stay on Arkiv; do not submit anything private.
+          . Sources are public and stay on Arkiv, so do not submit anything private.
         </p>
       </header>
 
-      <Section title="1. The contract">
-        <div className="row-form">
-          <label>
-            <span>Chain</span>
-            <select value={chain} onChange={(event) => isChainId(event.target.value) && setChain(event.target.value)}>
-              {Object.entries(CHAINS).map(([id, { name }]) => (
-                <option key={id} value={id}>
-                  {name}
-                </option>
-              ))}
-            </select>
-          </label>
-          <label className="grow">
-            <span>Contract address</span>
-            <input value={address} onChange={(event) => setAddress(event.target.value)} placeholder="0x…" spellCheck={false} />
-          </label>
-        </div>
-      </Section>
+      <div className="stepper">
+        <Step number={1} title="The contract">
+          <div className="form-row">
+            <div className="field">
+              <span>Chain</span>
+              <div className="segmented" role="group" aria-label="Chain">
+                {CHAIN_IDS.map((id) => (
+                  <button type="button" key={id} aria-pressed={chain === id} onClick={() => setChain(id)}>
+                    {CHAINS[id].name}
+                  </button>
+                ))}
+              </div>
+            </div>
+            <label className="field grow">
+              <span>Contract address</span>
+              <input className="mono" value={address} onChange={(event) => setAddress(event.target.value)} placeholder="0x…" spellCheck={false} />
+            </label>
+          </div>
+        </Step>
 
-      <Section title="2. The source">
-        <div className="row-form">
-          <button type="button" disabled={target === undefined || busy !== undefined} onClick={() => void importFromSourcify()}>
-            Import from Sourcify
-          </button>
-          <label className="file-input">
-            <span>or load a solc standard-JSON input file</span>
-            <input type="file" accept=".json,application/json" onChange={loadFile} />
+        <Step number={2} title="The source">
+          <div className="form-row">
+            <button type="button" className="btn" disabled={target === undefined || busy !== undefined} onClick={() => void importFromSourcify()}>
+              <Icon name="layers" />
+              Import from Sourcify
+            </button>
+            <label className="dropzone">
+              <Icon name="file" />
+              or load a solc standard-JSON input file
+              <input type="file" accept=".json,application/json" onChange={loadFile} />
+            </label>
+          </div>
+          {origin !== undefined && (
+            <p className="muted">{origin} Where a source comes from proves nothing; the verifiers compile it themselves.</p>
+          )}
+          <div className="form-row">
+            <label className="field grow">
+              <span>Compiler version</span>
+              <input className="mono" value={compilerVersion} onChange={(event) => setCompilerVersion(event.target.value)} placeholder="0.8.24+commit.e11b9ed9" spellCheck={false} />
+            </label>
+            <label className="field grow">
+              <span>Contract to compare</span>
+              <input className="mono" value={contract} onChange={(event) => setContract(event.target.value)} placeholder="contracts/Token.sol:Token" spellCheck={false} />
+            </label>
+          </div>
+          <label className="field">
+            <span>solc standard-JSON input</span>
+            <textarea
+              value={inputText}
+              onChange={(event) => setInputText(event.target.value)}
+              rows={9}
+              spellCheck={false}
+              placeholder='{ "language": "Solidity", "sources": { … }, "settings": { … } }'
+            />
           </label>
-        </div>
-        {origin !== undefined && <p className="muted">{origin} Verifiers will compile it themselves; where it came from proves nothing.</p>}
-        <div className="row-form">
-          <label className="grow">
-            <span>Compiler version</span>
-            <input value={compilerVersion} onChange={(event) => setCompilerVersion(event.target.value)} placeholder="0.8.24+commit.e11b9ed9" spellCheck={false} />
-          </label>
-          <label className="grow">
-            <span>Contract to compare</span>
-            <input value={contract} onChange={(event) => setContract(event.target.value)} placeholder="contracts/Token.sol:Token" spellCheck={false} />
-          </label>
-        </div>
-        <label>
-          <span>solc standard-JSON input</span>
-          <textarea value={inputText} onChange={(event) => setInputText(event.target.value)} rows={10} spellCheck={false} placeholder='{ "language": "Solidity", "sources": { … }, "settings": { … } }' />
-        </label>
-        <p className="muted small">
-          The bundle is compressed with brotli in your browser and must fit in {(MAX_SOURCE_PAYLOAD_BYTES / 1024).toFixed(0)} KiB.
-        </p>
-      </Section>
-
-      <Section title="3. Sign">
-        {wallet !== undefined && (
-          <p className="muted">
-            Connected as <Account address={wallet.address} full />.
+          <p className="faint">
+            Compressed with brotli in your browser; it must fit in {(MAX_SOURCE_PAYLOAD_BYTES / 1024).toFixed(0)} KiB.
           </p>
-        )}
-        <button type="button" className="primary" disabled={!ready || busy !== undefined} onClick={() => void submit()}>
-          {busy ?? (wallet === undefined ? "Connect wallet and submit" : "Submit request")}
-        </button>
-        {problem !== undefined && <p className="inline-error">{problem}</p>}
-      </Section>
+        </Step>
+
+        <Step number={3} title="Sign">
+          {wallet !== undefined && (
+            <p className="muted">
+              Connected as <Account address={wallet.address} full />
+            </p>
+          )}
+          <div className="form-row">
+            <button type="button" className="btn btn-primary" disabled={!ready || busy !== undefined} onClick={() => void submit()}>
+              {busy ?? (wallet === undefined ? "Connect wallet and submit" : "Submit request")}
+              {busy === undefined && <Icon name="arrow" />}
+            </button>
+          </div>
+          {problem !== undefined && <p className="error-text">{problem}</p>}
+        </Step>
+      </div>
     </>
   )
 }

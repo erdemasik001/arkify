@@ -27,17 +27,20 @@ export function KeepAlive({ entityKey, lifetime, label, onDone }: { entityKey: H
 
   if (state.txHash !== undefined) {
     return (
-      <a href={`${ARKIV_EXPLORER}/tx/${state.txHash}`} target="_blank" rel="noreferrer">
-        extended
+      <a className="link" href={`${ARKIV_EXPLORER}/tx/${state.txHash}`} target="_blank" rel="noreferrer">
+        Extended
       </a>
     )
   }
   return (
-    <span>
-      <button type="button" className="link-button" disabled={state.busy} onClick={() => void extend()} title={`Sign a Lifetime Extension: ${label}`}>
-        {state.busy ? "signing…" : "keep alive"}
-      </button>
-      {state.error !== undefined && <span className="inline-error" title={state.error}> failed</span>}
-    </span>
+    <button
+      type="button"
+      className="btn btn-sm btn-ghost"
+      disabled={state.busy}
+      onClick={() => void extend()}
+      title={state.error ?? `Sign a Lifetime Extension with your wallet: ${label}. Anyone may; only the owner can change the entity.`}
+    >
+      {state.busy ? "Signing…" : state.error !== undefined ? "Failed, retry" : "Keep alive"}
+    </button>
   )
 }

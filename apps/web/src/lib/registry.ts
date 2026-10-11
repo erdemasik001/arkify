@@ -1,7 +1,7 @@
 // The verifier registry: every registration whose lease is still alive, read once and shared.
 import { decodeAll, decodeVerifier, explainError, readAll, type VerifierRecord, verifiers } from "@arkify/core"
 import { useEffect, useState } from "react"
-import { reader } from "./arkiv"
+import { forgetQueries, reader } from "./arkiv"
 
 export type Registry = {
   records: VerifierRecord[]
@@ -9,6 +9,8 @@ export type Registry = {
   byCreator: Map<string, VerifierRecord>
   /** The Arkiv block the registry was read at, for "expires in" arithmetic. */
   head: bigint
+  /** When it was read, in milliseconds, to estimate the head since. */
+  readAt: number
 }
 
 const MAX_AGE_MS = 20_000
@@ -23,7 +25,7 @@ export function loadRegistry(force = false): Promise<Registry> {
       const key = record.creator.toLowerCase()
       if (!byCreator.has(key)) byCreator.set(key, record)
     }
-    return { records, byCreator, head }
+    return { records, byCreator, head, readAt: Date.now() }
   })
   cached = { at: Date.now(), value }
   value.catch(() => {
@@ -46,5 +48,12 @@ export function useRegistry(): { registry: Registry | undefined; error: string |
       current = false
     }
   }, [nonce])
-  return { registry, error, reload: () => setNonce((value) => value + 1) }
+  return {
+    registry,
+    error,
+    reload: () => {
+      forgetQueries()
+      setNonce((value) => value + 1)
+    },
+  }
 }

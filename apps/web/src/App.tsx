@@ -1,5 +1,8 @@
+import "@fontsource-variable/geist"
+import "@fontsource-variable/geist-mono"
 import { useSyncExternalStore } from "react"
 import { getAddress, type Hex, isAddress, isHex } from "viem"
+import { Icon, LiveIndicator } from "./components/ui"
 import { isChainId } from "./lib/evm"
 import { Contract } from "./pages/Contract"
 import { Home } from "./pages/Home"
@@ -36,7 +39,13 @@ function Page({ hash }: { hash: string }) {
   if (route === "") return <Home />
   return (
     <div className="note">
-      Nothing lives at this address. <a href="#/">Go to the lookup.</a>
+      <Icon name="help" />
+      <div>
+        Nothing lives at this address.{" "}
+        <a className="link" href="#/">
+          Go to the lookup.
+        </a>
+      </div>
     </div>
   )
 }
@@ -45,7 +54,7 @@ export function App() {
   const hash = useSyncExternalStore(subscribe, currentHash)
   const route = hash.replace(/^#\/?/, "").split(/[/?]/)[0]
   const link = (to: string, label: string, active: boolean) => (
-    <a href={to} className={active ? "active" : undefined}>
+    <a href={to} className={active ? "active" : undefined} aria-current={active ? "page" : undefined}>
       {label}
     </a>
   )
@@ -54,33 +63,34 @@ export function App() {
       <header className="topbar">
         <div className="container topbar-inner">
           <a href="#/" className="brand">
-            <span className="brand-mark" aria-hidden="true">
-              ✓
+            <span className="brand-mark">
+              <Icon name="check" />
             </span>
             Arkify
           </a>
-          <nav>
+          <nav className="nav">
             {link("#/", "Look up", route === "" || route === "contract" || route === "source")}
             {link("#/verifiers", "Verifiers", route === "verifiers")}
             {link("#/request", "Request", route === "request")}
           </nav>
+          <div className="topbar-end">
+            <LiveIndicator />
+            <a className="icon-link" href="https://github.com/erdemasik001/arkify" target="_blank" rel="noreferrer" aria-label="Source on GitHub">
+              <Icon name="github" />
+            </a>
+          </div>
         </div>
       </header>
       <main className="container">
         <Page key={hash} hash={hash} />
       </main>
       <footer className="container footer">
-        <p>
-          No backend. Every answer on this site is read in your browser from{" "}
-          <a href="https://arkiv.network" target="_blank" rel="noreferrer">
-            Arkiv
-          </a>{" "}
-          (Tiramisu testnet) and a public Ethereum RPC.{" "}
+        <span>No backend. Every answer is read in your browser from Arkiv (Tiramisu testnet) and a public Ethereum RPC.</span>
+        <span>
           <a href="https://github.com/erdemasik001/arkify" target="_blank" rel="noreferrer">
-            Source on GitHub
+            Open source, MIT
           </a>
-          , MIT.
-        </p>
+        </span>
       </footer>
     </>
   )

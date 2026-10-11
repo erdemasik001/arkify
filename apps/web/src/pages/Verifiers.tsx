@@ -1,11 +1,13 @@
-import { EntityType, knownVerifierName } from "@arkify/core"
+import { EntityType, knownVerifierName, Lifetime, type VerifierRecord } from "@arkify/core"
 import { type FormEvent, useEffect, useRef, useState } from "react"
 import { type Address, getAddress, isAddress } from "viem"
-import { Account, ErrorNote, LiveIndicator, Loading, Section } from "../components/ui"
-import { mayBe, subscribeLive } from "../lib/arkiv"
-import { expiresIn, timeAgo } from "../lib/format"
-import { type Registry, useRegistry } from "../lib/registry"
+import { Account, Avatar, Card, ErrorNote, Icon, LiveIndicator, Loading } from "../components/ui"
+import { BLOCK_SECONDS, mayBe, subscribeLive } from "../lib/arkiv"
+import { timeAgo } from "../lib/format"
+import { useRegistry } from "../lib/registry"
 import { isDefault, resetSettings, setThreshold, setTrusted, useSettings } from "../lib/settings"
+
+const LEASE_BLOCKS = Number(Lifetime.verifierLease.minLifetime)
 
 export function Verifiers() {
   const settings = useSettings()
@@ -16,15 +18,17 @@ export function Verifiers() {
   // A heartbeat extends a registration's lease, and the event says to which block. That is enough
   // to keep this page current without asking Arkiv again: reads are metered, events are not.
   // Only a new registration is read back.
-  const [beats, setBeats] = useState(new Map<string, { expiresAt: bigint; at: bigint; head: bigint }>())
+  const [beats, setBeats] = useState(new Map<string, { expiresAt: bigint; at: bigint }>())
+  const [head, setHead] = useState<bigint>()
   const state = useRef({ registry, reload })
   state.current = { registry, reload }
   useEffect(() => {
     let timer: ReturnType<typeof setTimeout> | undefined
     const stop = subscribeLive({
       onEvent: (event) => {
+        setHead((previous) => (previous === undefined || event.blockNumber > previous ? event.blockNumber : previous))
         if (event.type === "ExpiryExtended" && state.current.registry?.records.some(({ key }) => key === event.entityKey)) {
-          const beat = { expiresAt: event.expiresAt, at: BigInt(Math.floor(Date.now() / 1000)), head: event.blockNumber }
+          const beat = { expiresAt: event.expiresAt, at: BigInt(Math.floor(Date.now() / 1000)) }
           setBeats((previous) => new Map(previous).set(event.entityKey, beat))
         }
         if (event.type === "EntityCreated" && mayBe(EntityType.Verifier, event)) {
@@ -39,20 +43,6 @@ export function Verifiers() {
     }
   }, [])
 
-  const live: Registry | undefined =
-    registry === undefined
-      ? undefined
-      : {
-          ...registry,
-          head: [...beats.values()].reduce((head, beat) => (beat.head > head ? beat.head : head), registry.head),
-          byCreator: new Map(
-            [...registry.byCreator].map(([creator, record]) => {
-              const beat = beats.get(record.key)
-              return [creator, beat === undefined ? record : { ...record, expiresAt: beat.expiresAt, lastBeat: beat.at }]
-            }),
-          ),
-        }
-
   function add(event: FormEvent) {
     event.preventDefault()
     const trimmed = input.trim()
@@ -65,120 +55,145 @@ export function Verifiers() {
     setProblem(undefined)
   }
 
+  const currentHead = registry === undefined ? undefined : head !== undefined && head > registry.head ? head : registry.head
+  const recordOf = (address: Address): VerifierRecord | undefined => {
+    const record = registry?.byCreator.get(address.toLowerCase())
+    const beat = record === undefined ? undefined : beats.get(record.key)
+    return record === undefined || beat === undefined ? record : { ...record, expiresAt: beat.expiresAt, lastBeat: beat.at }
+  }
   const trusted = new Set(settings.trusted.map((address) => address.toLowerCase()))
-  const others = registry?.records.filter(({ creator }) => !trusted.has(creator.toLowerCase())) ?? []
+  const others = registry?.records.filter(({ creator }) => !trusted.has(creator.toLowerCase())).map(({ creator }) => creator) ?? []
+  const choices = Array.from({ length: Math.max(1, settings.trusted.length) }, (_, index) => index + 1)
 
   return (
     <>
       <header className="page-head">
-        <p className="eyebrow">Verifiers</p>
+        <span className="eyebrow">Verifiers</span>
         <h1>Whose word counts is your decision</h1>
-        <p className="muted">
-          A verifier is an account. What it attests is signed by that account, and Arkiv records the signer as the entity's
-          creator, which nothing can change afterwards. The name beside an address is only what that account calls itself.
-          Your list stays in this browser.
+        <p className="lede">
+          A verifier is an account. Arkiv records which account created every attestation, and nothing can change that
+          afterwards. The name on a card is only what that account calls itself. Your choices stay in this browser.
         </p>
       </header>
 
       {error !== undefined && <ErrorNote message={error} retry={reload} />}
 
-      <Section title="Trusted by you" aside={<LiveIndicator />}>
-        {registry === undefined && error === undefined && <Loading what="the verifier registry" />}
-        <VerifierTable addresses={settings.trusted} registry={live} action="remove" />
-        {settings.trusted.length === 0 && <p className="muted">Nobody. Every contract will read as unverified.</p>}
-        <div className="row-form">
-          <label>
-            <span>A source counts as verified when this many trusted verifiers match it</span>
-            <input
-              type="number"
-              min={1}
-              max={Math.max(1, settings.trusted.length)}
-              value={settings.threshold}
-              onChange={(event) => setThreshold(Number(event.target.value))}
-            />
-          </label>
+      <Card title="Trusted by you" icon="shieldCheck" aside={<LiveIndicator />}>
+        {registry === undefined && error === undefined && <Loading />}
+        <div className="grid-cards">
+          {settings.trusted.map((address) => (
+            <VerifierCard key={address} address={address} record={recordOf(address)} head={currentHead} trusted />
+          ))}
+        </div>
+        {settings.trusted.length === 0 && <p className="empty">Nobody. Every contract will read as unverified.</p>}
+        <div className="form-row meter">
+          <div className="field">
+            <span>A source is verified when this many trusted verifiers match it</span>
+            <div className="segmented" role="group" aria-label="Threshold">
+              {choices.map((value) => (
+                <button type="button" key={value} aria-pressed={settings.threshold === value} onClick={() => setThreshold(value)}>
+                  {value}
+                </button>
+              ))}
+            </div>
+          </div>
           {!isDefault(settings) && (
-            <button type="button" className="link-button" onClick={resetSettings}>
+            <button type="button" className="btn btn-sm btn-ghost" onClick={resetSettings}>
               Reset to the defaults
             </button>
           )}
         </div>
         {settings.threshold > settings.trusted.length && settings.trusted.length > 0 && (
-          <p className="inline-error">The threshold is higher than the number of verifiers you trust, so nothing can read as verified.</p>
+          <p className="error-text">The threshold is higher than the number of verifiers you trust, so nothing can read as verified.</p>
         )}
-      </Section>
+      </Card>
 
-      <Section title="Other verifiers with a live registration">
-        <p className="muted">
-          Anyone can register. Trusting an account makes its attestations count on every contract page.
-        </p>
+      <Card title="Other verifiers with a live registration" icon="users">
+        <p className="muted">Anyone can register. Trusting an account makes its attestations count on every contract page.</p>
         {others.length === 0 ? (
-          <p className="muted">None right now.</p>
+          <p className="empty">None right now.</p>
         ) : (
-          <VerifierTable addresses={others.map(({ creator }) => creator)} registry={live} action="trust" />
+          <div className="grid-cards">
+            {others.map((address) => (
+              <VerifierCard key={address} address={address} record={recordOf(address)} head={currentHead} trusted={false} />
+            ))}
+          </div>
         )}
-        <form className="row-form" onSubmit={add}>
-          <label className="grow">
+        <form className="form-row meter" onSubmit={add}>
+          <label className="field grow">
             <span>Trust an account by address</span>
             <input value={input} onChange={(event) => setInput(event.target.value)} placeholder="0x…" spellCheck={false} />
           </label>
-          <button type="submit">Trust</button>
+          <button type="submit" className="btn">
+            Trust
+          </button>
         </form>
-        {problem !== undefined && <p className="inline-error">{problem}</p>}
-      </Section>
+        {problem !== undefined && <p className="error-text">{problem}</p>}
+      </Card>
     </>
   )
 }
 
-function VerifierTable({ addresses, registry, action }: { addresses: readonly Address[]; registry: Registry | undefined; action: "trust" | "remove" }) {
-  if (addresses.length === 0) return null
+/**
+ * One verifier. The bar is its lease: the registration expires fifteen minutes after the last
+ * heartbeat, and every heartbeat event fills the bar again. An empty bar is a verifier that died.
+ */
+function VerifierCard({
+  address,
+  record,
+  head,
+  trusted,
+}: {
+  address: Address
+  record: VerifierRecord | undefined
+  head: bigint | undefined
+  trusted: boolean
+}) {
+  const name = record?.name ?? knownVerifierName(address)
+  const blocksLeft = record === undefined || head === undefined ? 0 : Math.max(0, Number(record.expiresAt - head))
+  const online = record !== undefined && blocksLeft > 0
+  const minutes = Math.ceil((blocksLeft * BLOCK_SECONDS) / 60)
   return (
-    <div className="table-wrap">
-      <table>
-        <thead>
-          <tr>
-            <th>Account</th>
-            <th>Says it is</th>
-            <th>Last heartbeat</th>
-            <th>Lease ends in</th>
-            <th />
-          </tr>
-        </thead>
-        <tbody>
-          {addresses.map((address) => {
-            const record = registry?.byCreator.get(address.toLowerCase())
-            return (
-              <tr key={address}>
-                <td>
-                  <Account address={address} />
-                </td>
-                <td>
-                  {record === undefined ? (
-                    <span className="muted">
-                      {knownVerifierName(address) !== undefined && <strong>{knownVerifierName(address)} </strong>}
-                      {registry === undefined ? "…" : "offline: no live registration"}
-                    </span>
-                  ) : (
-                    <>
-                      <strong>{record.name}</strong>
-                      <div className="row-note">
-                        {record.engine} {record.engineVersion}
-                      </div>
-                    </>
-                  )}
-                </td>
-                <td>{record === undefined ? "" : timeAgo(record.lastBeat)}</td>
-                <td>{record === undefined || registry === undefined ? "" : expiresIn(record.expiresAt, registry.head)}</td>
-                <td className="right">
-                  <button type="button" className="link-button" onClick={() => setTrusted(address, action === "trust")}>
-                    {action}
-                  </button>
-                </td>
-              </tr>
-            )
-          })}
-        </tbody>
-      </table>
+    <div className={trusted ? "vcard is-trusted" : "vcard"}>
+      <div className="vcard-top">
+        <Avatar address={address} />
+        <div className="row-text">
+          <div className="vcard-name">{name ?? "Unnamed account"}</div>
+          <div className="row-sub">
+            <Account address={address} />
+          </div>
+        </div>
+        <button
+          type="button"
+          role="switch"
+          aria-checked={trusted}
+          aria-label={`Trust ${name ?? address}`}
+          className="switch"
+          onClick={() => setTrusted(address, !trusted)}
+        />
+      </div>
+      <div className="vcard-facts">
+        <div className="fact">
+          <span>Status</span>
+          <b>
+            <span className={online ? "dot dot-on" : "dot"} />
+            {online ? "Online" : "Offline"}
+          </b>
+        </div>
+        <div className="fact">
+          <span>Last heartbeat</span>
+          <b>{record === undefined ? "none on Arkiv" : timeAgo(record.lastBeat)}</b>
+        </div>
+      </div>
+      <div>
+        <div className="lease" role="img" aria-label={online ? `Lease ends in ${minutes} minutes` : "No live lease"}>
+          <i style={{ width: `${Math.min(100, (blocksLeft / LEASE_BLOCKS) * 100)}%` }} />
+        </div>
+        <div className="lease-caption">
+          <span>{record === undefined ? "No registration on Arkiv" : `${record.engine} ${record.engineVersion}`}</span>
+          <span>{online ? `lease ends in ${minutes} min` : "lease expired"}</span>
+        </div>
+      </div>
     </div>
   )
 }
