@@ -1,5 +1,5 @@
 // Reads deployed bytecode from EVM chains over public JSON-RPC.
-import type { Target } from "@arkify/core"
+import { EVM_CHAINS, type Target } from "@arkify/core"
 import { createPublicClient, type Hex, http } from "viem"
 
 /** Returns the runtime bytecode at a contract address, `0x` if there is none. */
@@ -15,8 +15,8 @@ export class UnsupportedChainError extends Error {
 /** Chain IDs mapped to RPC URLs, from the environment: Sepolia and Ethereum mainnet. */
 export function rpcUrlsFromEnv(env: Record<string, string | undefined> = process.env) {
   return {
-    "11155111": env.SEPOLIA_RPC_URL ?? "https://ethereum-sepolia-rpc.publicnode.com",
-    "1": env.MAINNET_RPC_URL ?? "https://ethereum-rpc.publicnode.com",
+    "11155111": env.SEPOLIA_RPC_URL ?? EVM_CHAINS["11155111"].rpc,
+    "1": env.MAINNET_RPC_URL ?? EVM_CHAINS["1"].rpc,
   }
 }
 

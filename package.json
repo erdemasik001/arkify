@@ -20,7 +20,8 @@
     "e2e": "tsx scripts/e2e.ts",
     "web": "pnpm --filter @arkify/web dev",
     "web:build": "pnpm --filter @arkify/web build",
-    "purge-demo": "tsx scripts/purge.ts"
+    "purge-demo": "tsx scripts/purge.ts",
+    "arkify": "tsx packages/cli/src/main.ts"
   },
   "dependencies": {
     "@arkiv-network/sdk": "0.8.1",
@@ -28,6 +29,7 @@
     "viem": "^2.57.4"
   },
   "devDependencies": {
+    "@arkify/cli": "workspace:*",
     "@arkify/core": "workspace:*",
     "@arkify/engine": "workspace:*",
     "@arkify/verifier": "workspace:*",

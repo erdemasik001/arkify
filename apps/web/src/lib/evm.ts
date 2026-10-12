@@ -1,23 +1,12 @@
 // Reads deployed bytecode from the EVM chain a contract lives on, over a public RPC.
+import { EVM_CHAINS, type EvmChainId, isEvmChainId } from "@arkify/core"
 import { type Address, createPublicClient, type Hex, http, keccak256 } from "viem"
 
-export const CHAINS = {
-  "11155111": {
-    name: "Sepolia",
-    rpc: "https://ethereum-sepolia-rpc.publicnode.com",
-    explorer: "https://sepolia.etherscan.io",
-  },
-  "1": {
-    name: "Ethereum",
-    rpc: "https://ethereum-rpc.publicnode.com",
-    explorer: "https://etherscan.io",
-  },
-} as const
-
-export type ChainId = keyof typeof CHAINS
+export const CHAINS = EVM_CHAINS
+export type ChainId = EvmChainId
+export const isChainId = isEvmChainId
 /** The order chains are offered in: the testnet the demo data lives on first. */
 export const CHAIN_IDS: readonly ChainId[] = ["11155111", "1"]
-export const isChainId = (value: string): value is ChainId => value in CHAINS
 
 const clients = new Map<string, ReturnType<typeof createPublicClient>>()
 
