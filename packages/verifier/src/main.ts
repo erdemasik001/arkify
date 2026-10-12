@@ -3,8 +3,9 @@
 //   pnpm verifier --name verifier-a --key-env VERIFIER_A_PRIVATE_KEY
 //   pnpm verifier --name evil --key-env EVIL_PRIVATE_KEY --evil      # demo only
 //
-// Without flags it reads VERIFIER_NAME and VERIFIER_PRIVATE_KEY, which is how a deployed instance
-// is configured. The key is only ever read from the environment.
+// Without flags it reads VERIFIER_NAME and VERIFIER_PRIVATE_KEY (and VERIFIER_EVIL=1 for the demo
+// instance), which is how a deployed instance is configured. The key is only ever read from the
+// environment.
 import { parseArgs } from "node:util"
 import { budgetErrorOf } from "@arkify/core"
 import { tiramisu } from "@arkiv-network/sdk/chains"
@@ -36,7 +37,7 @@ const start = () =>
     name,
     rpcUrl: process.env.ARKIV_RPC_URL ?? tiramisu.rpcUrls.default.http[0],
     wsUrl: process.env.ARKIV_WS_URL ?? tiramisu.rpcUrls.default.webSocket[0],
-    evil: values.evil,
+    evil: values.evil || process.env.VERIFIER_EVIL === "1",
     verifyTimeoutSeconds: Number(process.env.ARKIFY_VERIFY_TIMEOUT_SECONDS ?? 180),
   })
 

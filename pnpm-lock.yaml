@@ -133,6 +133,9 @@ importers:
       dotenv:
         specifier: ^18.0.6
         version: 18.0.6
+      tsx:
+        specifier: ^4.23.15
+        version: 4.23.15
       viem:
         specifier: ^2.57.4
         version: 2.57.4(typescript@5.9.3)

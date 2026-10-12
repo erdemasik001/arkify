@@ -1,0 +1,49 @@
+# The demo fleet: three honest verifiers and the demo-only dishonest one.
+# Reads keys and endpoints from .env in this directory (see .env.example):
+#
+#   docker compose up --build -d
+#   docker compose logs -f
+name: arkify
+
+x-verifier: &verifier
+  build: .
+  restart: unless-stopped
+  volumes:
+    - solc:/data
+
+x-endpoints: &endpoints
+  ARKIV_RPC_URL: ${ARKIV_RPC_URL}
+  ARKIV_WS_URL: ${ARKIV_WS_URL}
+  SEPOLIA_RPC_URL: ${SEPOLIA_RPC_URL}
+  MAINNET_RPC_URL: ${MAINNET_RPC_URL}
+
+services:
+  verifier-a:
+    <<: *verifier
+    environment:
+      <<: *endpoints
+      VERIFIER_NAME: verifier-a
+      VERIFIER_PRIVATE_KEY: ${VERIFIER_A_PRIVATE_KEY}
+  verifier-b:
+    <<: *verifier
+    environment:
+      <<: *endpoints
+      VERIFIER_NAME: verifier-b
+      VERIFIER_PRIVATE_KEY: ${VERIFIER_B_PRIVATE_KEY}
+  verifier-c:
+    <<: *verifier
+    environment:
+      <<: *endpoints
+      VERIFIER_NAME: verifier-c
+      VERIFIER_PRIVATE_KEY: ${VERIFIER_C_PRIVATE_KEY}
+  # Demo only. Attests full_match to everything, to show that trust filtering catches it.
+  evil:
+    <<: *verifier
+    environment:
+      <<: *endpoints
+      VERIFIER_NAME: evil
+      VERIFIER_PRIVATE_KEY: ${EVIL_PRIVATE_KEY}
+      VERIFIER_EVIL: "1"
+
+volumes:
+  solc:
