@@ -159,6 +159,15 @@ Format: **surface · version · expected · actual · reproduce · suggested fix
 - **Workaround:** the verifier owns the connection (`packages/verifier/src/verifier.ts`): on `onError` it closes the client and subscribes again with exponential backoff, and because Tiramisu is never quiet, a minute without any event also triggers a reconnect. A request scan with every heartbeat catches whatever was missed. `pnpm e2e` shows a refused verifier reconnecting two seconds later and answering.
 - **Suggested fix:** document the connection limit, pass the gateway's status and body through to `onError`, and have the watcher retry a failed first handshake when `reconnect` is set.
 
+## F-016 · The Hub's access-key page fails with a blank error in Safari [runtime, seen once]
+
+- **Surface:** Hub (https://hub.arkiv.network/access-keys)
+- **Version:** Hub build `production · 7abc7fd`, Safari on macOS 26.6, 13 Oct
+- **Expected:** without an injected wallet the page offers a way forward, as it does in a Chromium browser: there the same build shows "Connect your wallet" and a wallet picker (Rainbow, Base, MetaMask, WalletConnect).
+- **Actual:** opened from a link, which the system sent to Safari (no wallet extension), the page showed only the Hub's error screen: "THIS PAGE COULDN'T LOAD. Reload to try again, or go back." Nothing says a wallet is missing or that another browser would work. The builder, who had created the key in Chrome minutes earlier, read it as the wallet refusing to connect.
+- **Reproduce:** open the URL in Safari with no wallet extension and try to connect. We saw it once and did not investigate further; in Chrome with MetaMask, and in a Chromium browser without any wallet, the page works.
+- **Suggested fix:** have the error screen name what failed, and when no wallet is detected say so and offer WalletConnect or "open in a browser with a wallet".
+
 ---
 
 ## Working paths (tested, behaved as documented)
