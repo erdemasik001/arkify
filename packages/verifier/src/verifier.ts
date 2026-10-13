@@ -58,6 +58,8 @@ export type VerifierOptions = {
   /** Demo only: attest `full_match` to everything without compiling anything. */
   evil?: boolean
   heartbeatSeconds?: number
+  /** How often to re-read the live requests as a net under the subscription. Default: 30 minutes. */
+  scanSeconds?: number
   /** How long one verification may run before it is stopped and reported as an `error`. */
   verifyTimeoutSeconds?: number
   log?: (line: string) => void
@@ -89,6 +91,7 @@ export async function startVerifier(options: VerifierOptions): Promise<RunningVe
   const readCode = rpcCodeReader(rpcUrls)
   const engine = new IsolatedEngine((options.verifyTimeoutSeconds ?? 180) * 1000)
   const heartbeatMs = (options.heartbeatSeconds ?? HEARTBEAT_SECONDS) * 1000
+  const scanMs = (options.scanSeconds ?? 30 * 60) * 1000
 
   const pub = createPublicClient({ chain: tiramisu, transport: arkivHttp(options.rpcUrl) })
   const wallet = createWalletClient({
@@ -311,11 +314,14 @@ export async function startVerifier(options: VerifierOptions): Promise<RunningVe
 
   /**
    * Offers every live request this verifier has not answered. Run at start-up to catch up on what
-   * arrived while it was down, and again with each heartbeat as a net under the live subscription.
+   * arrived while it was down, after every reconnect, and every half hour as a net under the live
+   * subscription. Queries are metered and events are not, so the net is deliberately coarse.
    */
   let scannedTo: bigint | undefined
+  let scannedAt = 0
   async function scan(): Promise<void> {
     if (Date.now() < pausedUntil) return
+    scannedAt = Date.now()
     const text = scannedTo === undefined ? requests().toString() : requestsCreatedAfter(scannedTo)
     let page = await pub.query(text, { select: RECORD_SELECTION, limit: 200 })
     const head = page.blockNumber
@@ -367,7 +373,9 @@ export async function startVerifier(options: VerifierOptions): Promise<RunningVe
 
   await scan()
   const timer = setInterval(() => {
-    void beat().then(scan).catch(reportScanFailure)
+    void beat()
+      .then(() => (Date.now() - scannedAt >= scanMs ? scan() : undefined))
+      .catch(reportScanFailure)
   }, heartbeatMs)
   log(`ready as ${self}${evil ? " (EVIL demo mode)" : ""}`)
 

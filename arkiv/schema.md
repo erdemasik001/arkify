@@ -167,7 +167,7 @@ type = str('arkify.source') AND schema_version = i32(1) AND source_hash = bytes3
 
 Verifiers and the web app subscribe with `watchEntityEvents` over a WebSocket transport, without `fromBlock`. An `EntityCreated` event carries no attributes ([F-005](friction.md)), and the subscription sees every create on the chain, so [`mayBe`](../packages/core/src/events.ts) first tests what the event does carry: each Arkify type is created with a fixed lifetime and fixed flags, so `expiresAt - blockNumber` and `creationFlags` rule out foreign entities without a read. Only a create shaped like a request (24 hours, `readonly` + `permissionlessExtension`) is read back and decoded.
 
-The subscription is the live path. Under it, each verifier runs query 6 once at start-up and once per heartbeat, so a request that arrived while its socket was down is still answered.
+The subscription is the live path. Under it, each verifier runs query 6 once at start-up, after every reconnect and every half hour, so a request that arrived while its socket was down is still answered. Queries are metered and events are not, which is why the net is coarse and the live path is events.
 
 Results are paged with the cursor (the node returns at most 200 per page and in no guaranteed order), and sorted on the client by `verified_at`.
 
