@@ -33,10 +33,15 @@ const contentSecurityPolicy: Plugin = {
 
 // A relative base and hash routing: the build is plain static files that work from any path, on
 // any static host, with no server-side rewrites.
+// PORT, when set, is the port to use and nothing else will do; otherwise Vite's usual default,
+// moving to the next free port if another project already has it.
+const port = process.env.PORT === undefined ? undefined : Number(process.env.PORT)
+const listen = port === undefined ? {} : { port, strictPort: true }
+
 export default defineConfig({
   base: "./",
   plugins: [react(), contentSecurityPolicy],
   build: { target: "es2022" },
-  server: { port: 5173, strictPort: true },
-  preview: { port: 4173, strictPort: true },
+  server: listen,
+  preview: listen,
 })
