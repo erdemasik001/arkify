@@ -62,6 +62,8 @@ export type VerifierOptions = {
   scanSeconds?: number
   /** How long one verification may run before it is stopped and reported as an `error`. */
   verifyTimeoutSeconds?: number
+  /** Process memory, in MB, above which a running verification is stopped the same way. */
+  verifyMemoryMb?: number
   log?: (line: string) => void
 }
 
@@ -75,7 +77,6 @@ export type RunningVerifier = {
 /** How many requests one account may have verified per hour before the rest are ignored. */
 const REQUESTS_PER_CREATOR_PER_HOUR = 30
 const MAX_ATTEMPTS = 3
-const DAY_SECONDS = 24n * 60n * 60n
 
 const now = () => BigInt(Math.floor(Date.now() / 1000))
 const short = (hex: string) => `${hex.slice(0, 10)}…`
@@ -89,7 +90,7 @@ export async function startVerifier(options: VerifierOptions): Promise<RunningVe
   const log = options.log ?? ((line: string) => console.log(`[${name}] ${line}`))
   const rpcUrls = rpcUrlsFromEnv()
   const readCode = rpcCodeReader(rpcUrls)
-  const engine = new IsolatedEngine((options.verifyTimeoutSeconds ?? 180) * 1000)
+  const engine = new IsolatedEngine((options.verifyTimeoutSeconds ?? 180) * 1000, options.verifyMemoryMb ?? 768)
   const heartbeatMs = (options.heartbeatSeconds ?? HEARTBEAT_SECONDS) * 1000
   const scanMs = (options.scanSeconds ?? 30 * 60) * 1000
 
@@ -339,9 +340,11 @@ export async function startVerifier(options: VerifierOptions): Promise<RunningVe
     if (!pauseFor(error)) log(`scan failed: ${messageOf(error)}`)
   }
 
-  // What this wallet answered in the last day, so start-up does not redo it.
-  const recent = await readAll(pub, attestationsVerifiedSince(now() - DAY_SECONDS - 3_600n), { creator: self })
-  for (const attestation of decodeAll(recent, decodeAttestation)) {
+  // Everything this wallet has attested that is still on Arkiv, so a restart does not redo it. A
+  // request can be up to a day old, but the answer to it may be much older: asked again, an
+  // attestation is extended, and its `verified_at` stays what it was.
+  const mine = await readAll(pub, attestationsVerifiedSince(0n), { creator: self })
+  for (const attestation of decodeAll(mine, decodeAttestation)) {
     answered.add(pairKey(attestation, attestation.sourceHash))
   }
 

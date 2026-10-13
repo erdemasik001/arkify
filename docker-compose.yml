@@ -10,7 +10,7 @@ name: arkify
 x-verifier: &verifier
   build: .
   restart: unless-stopped
-  mem_limit: ${VERIFIER_MEMORY:-1g}
+  mem_limit: ${VERIFIER_MEMORY:-1200m}
   cpus: ${VERIFIER_CPUS:-1.0}
   logging:
     driver: json-file
@@ -21,6 +21,7 @@ x-verifier: &verifier
     - solc:/data
 
 x-endpoints: &endpoints
+  ARKIFY_VERIFY_MEMORY_MB: ${ARKIFY_VERIFY_MEMORY_MB:-768}
   ARKIV_RPC_URL: ${ARKIV_RPC_URL}
   ARKIV_WS_URL: ${ARKIV_WS_URL}
   SEPOLIA_RPC_URL: ${SEPOLIA_RPC_URL}
@@ -53,6 +54,13 @@ services:
       VERIFIER_NAME: evil
       VERIFIER_PRIVATE_KEY: ${EVIL_PRIVATE_KEY}
       VERIFIER_EVIL: "1"
+
+# A fixed subnet, so the fleet can be told apart from other projects' networks in firewall rules.
+networks:
+  default:
+    ipam:
+      config:
+        - subnet: ${ARKIFY_SUBNET:-172.30.42.0/24}
 
 volumes:
   solc:

@@ -136,7 +136,7 @@ type = str('arkify.attestation') AND schema_version = i32(1) AND chain_id = u64(
 type = str('arkify.attestation') AND schema_version = i32(1) AND chain_id = u64(11155111) AND address = addr(0xC02a…6Cc2) AND code_hash = bytes32(0xc0c0…c0c0) AND source_hash = bytes32(0x1111…1111) AND $creator = addr(0xB5F1…B590)
 ```
 
-**4. Recent attestations** (web live feed, first page; new ones then arrive over WebSocket events). With `.createdBy(self)` a verifier reads what it answered in the last day when it starts, so a restart does not redo that work.
+**4. Recent attestations** (web live feed, first page; new ones then arrive over WebSocket events). With `.createdBy(self)` and `verified_at > u64(0)` a starting verifier reads everything it has attested that is still on Arkiv, so a restart does not redo that work.
 
 ```
 type = str('arkify.attestation') AND schema_version = i32(1) AND verified_at > u64(1791739187)

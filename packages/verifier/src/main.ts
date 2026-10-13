@@ -39,6 +39,7 @@ const start = () =>
     wsUrl: process.env.ARKIV_WS_URL ?? tiramisu.rpcUrls.default.webSocket[0],
     evil: values.evil || process.env.VERIFIER_EVIL === "1",
     verifyTimeoutSeconds: Number(process.env.ARKIFY_VERIFY_TIMEOUT_SECONDS ?? 180),
+    verifyMemoryMb: Number(process.env.ARKIFY_VERIFY_MEMORY_MB ?? 768),
   })
 
 // Start-up reads Arkiv. If the RPC has paused this address's reads, wait for it rather than exit.
