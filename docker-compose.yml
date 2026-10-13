@@ -5,9 +5,18 @@
 #   docker compose logs -f
 name: arkify
 
+# Verifiers only make outbound connections, so no ports are published. The limits keep a heavy
+# compile from starving whatever else runs on the host.
 x-verifier: &verifier
   build: .
   restart: unless-stopped
+  mem_limit: ${VERIFIER_MEMORY:-1g}
+  cpus: ${VERIFIER_CPUS:-1.0}
+  logging:
+    driver: json-file
+    options:
+      max-size: 10m
+      max-file: "3"
   volumes:
     - solc:/data
 

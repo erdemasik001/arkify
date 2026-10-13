@@ -22,7 +22,8 @@
     "web:build": "pnpm --filter @arkify/web build",
     "purge-demo": "tsx scripts/purge.ts",
     "arkify": "tsx packages/cli/src/main.ts",
-    "request": "tsx scripts/request.ts"
+    "request": "tsx scripts/request.ts",
+    "set-access-key": "tsx scripts/set-access-key.ts"
   },
   "dependencies": {
     "@arkiv-network/sdk": "0.8.1",
