@@ -9,7 +9,6 @@ Lines marked **TODO** need a decision or a fact only the team has.
 Before submitting:
 
 - Replace `blob/main` in every code link with `blob/<final commit SHA>`, so line anchors keep pointing at the judged code.
-- Fill in the live URL and the video link.
 - Never paste a private key, seed phrase, access key or an RPC URL that contains one.
 
 ---
@@ -23,7 +22,7 @@ Before submitting:
 **Project links:**
 
 - Repository: https://github.com/erdemasik001/arkify
-- Demo video (≤ 3 min): **TODO**
+- Demo video (2:31): https://youtu.be/0M27XDnEVQs
 - Live app: https://arkify-one.vercel.app
 
 **Tracks:** Security, Censorship Resistance
@@ -307,8 +306,8 @@ it by fingerprinting its types from lifetime and flags, which no other app shoul
 
 ### 17. Our repo is public under the MIT licence, and every link is accessible to judges. \*
 
-**TODO** confirm once the live URL and the video link are public. The repo is public with an MIT
-licence.
+**TODO** confirm. Checked on 15 October: the repo is public with an MIT licence, the live app opens
+without a login, and the video (https://youtu.be/0M27XDnEVQs) plays without a login.
 
 ### 18. I plan to attend Devcon 8 in Mumbai (optional)
 

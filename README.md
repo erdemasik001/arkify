@@ -9,7 +9,7 @@ Web3 database, from its own wallet. Readers count only the answers signed by acc
 to trust. Arkiv records who signed each answer, and nobody can change that afterwards.
 
 - **Live app:** https://arkify-one.vercel.app (static, on Vercel; no login, no wallet needed to read)
-- **Demo video (≤ 3 min):** _TODO_
+- **Demo video (2:31):** https://youtu.be/0M27XDnEVQs (silent, with captions)
 - **Data contract:** [`arkiv/schema.md`](arkiv/schema.md) · **Friction log:** [`arkiv/friction.md`](arkiv/friction.md)
 - **Tracks:** Security (primary), Censorship Resistance
 - **Network:** Arkiv Tiramisu testnet (chain ID `7738577`), `@arkiv-network/sdk@0.8.1`
