@@ -8,7 +8,7 @@ compare the result with the bytecode deployed on Ethereum. Each one writes its a
 Web3 database, from its own wallet. Readers count only the answers signed by accounts they choose
 to trust. Arkiv records who signed each answer, and nobody can change that afterwards.
 
-- **Live app:** _TODO: add the public URL after deployment_
+- **Live app:** https://arkify-one.vercel.app (static, on Vercel; no login, no wallet needed to read)
 - **Demo video (≤ 3 min):** _TODO_
 - **Data contract:** [`arkiv/schema.md`](arkiv/schema.md) · **Friction log:** [`arkiv/friction.md`](arkiv/friction.md)
 - **Tracks:** Security (primary), Censorship Resistance
@@ -170,7 +170,7 @@ lifetime, flag and query, is in [`arkiv/schema.md`](arkiv/schema.md).
 
 ### In the live app (no wallet needed)
 
-1. Open the live app and click **ENS registry** under the search box. This is the ENS registry on
+1. Open [the live app](https://arkify-one.vercel.app) and click **ENS registry** under the search box. This is the ENS registry on
    Sepolia, `0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e`.
 2. You see **Verified**: three trusted verifiers compiled `ENSRegistryWithFallback` and got exactly
    the deployed code, metadata hash included. A tampered copy of the source (one token changed:

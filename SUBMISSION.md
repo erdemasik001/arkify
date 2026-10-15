@@ -24,7 +24,7 @@ Before submitting:
 
 - Repository: https://github.com/erdemasik001/arkify
 - Demo video (≤ 3 min): **TODO**
-- Live app: **TODO**
+- Live app: https://arkify-one.vercel.app
 
 **Tracks:** Security, Censorship Resistance
 
@@ -83,7 +83,10 @@ Each of these is logged with versions and steps to reproduce in `arkiv/friction.
 
 ### 1. Live app URL \*
 
-**TODO**: the deployed URL (Vercel). It must open without asking for access.
+https://arkify-one.vercel.app
+
+A static site on Vercel. It opens without a login, and reading needs no wallet. The verifier fleet
+runs on a separate server, so requests made from the site are answered live.
 
 ### 2. Does any team member hold Indian nationality? \*
 
@@ -228,7 +231,7 @@ https://github.com/erdemasik001/arkify/blob/main/arkiv/schema.md
 
 **Without a wallet:**
 
-1. Open the live app (**TODO** URL) and click "ENS registry". This is the ENS registry on Sepolia,
+1. Open https://arkify-one.vercel.app and click "ENS registry". This is the ENS registry on Sepolia,
    `0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e`.
    - It shows **Verified**: three trusted verifiers matched the true source.
    - A tampered copy (`owner == msg.sender` → `owner == tx.origin`) shows **Mismatch** from all three.
