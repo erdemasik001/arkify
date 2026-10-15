@@ -4,7 +4,7 @@
 // only if the official release list names it, and a download is used only if its SHA-256 matches
 // that list. The version string comes from an untrusted source bundle, so it is validated before
 // it is turned into a URL or a file path.
-import { createHash } from "node:crypto"
+import { createHash, randomUUID } from "node:crypto"
 import { mkdir, readFile, rename, writeFile } from "node:fs/promises"
 import { createRequire } from "node:module"
 import { join, resolve } from "node:path"
@@ -82,7 +82,7 @@ function sha256(bytes: Uint8Array): string {
   return `0x${createHash("sha256").update(bytes).digest("hex")}`
 }
 
-async function fetchVerified(build: Build, cacheDir: string): Promise<string> {
+export async function fetchVerified(build: Build, cacheDir: string): Promise<string> {
   // `.cjs`, so Node loads the build as CommonJS even when the cache sits inside an ESM package.
   const file = join(cacheDir, build.path.replace(/\.js$/, ".cjs"))
   const cached = await readFile(file).catch(() => undefined)
@@ -93,8 +93,11 @@ async function fetchVerified(build: Build, cacheDir: string): Promise<string> {
   const bytes = new Uint8Array(await response.arrayBuffer())
   if (sha256(bytes) !== build.sha256) throw new Error("the download does not match its published SHA-256")
   await mkdir(cacheDir, { recursive: true })
-  await writeFile(`${file}.partial`, bytes)
-  await rename(`${file}.partial`, file)
+  // Verifiers that share a cache can fetch the same build at the same time. Each writes its own
+  // temporary file; the copies are identical and a rename is atomic, so whichever lands last wins.
+  const partial = `${file}.${process.pid}.${randomUUID()}.partial`
+  await writeFile(partial, bytes)
+  await rename(partial, file)
   return file
 }
 
