@@ -23,7 +23,7 @@ const REPOSITORY = "https://github.com/erdemasik001/arkify"
 
 const EXAMPLES = [
   { label: "ENS registry", chain: "11155111", address: "0x00000000000C2E074eC69A0dFb2997BA6C7d2e1e" },
-  { label: "A contract nobody has checked", chain: "11155111", address: "0xfFf9976782d46CC05630D1f6eBAb18b2324d6B14" },
+  { label: "A contract nobody has checked", chain: "11155111", address: "0xD72ad515b0E7cBf99fbea880597A1210D7699293" },
 ]
 
 const BUILT_ON: { icon: IconName; label: string }[] = [
